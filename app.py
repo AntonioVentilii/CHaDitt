@@ -4,7 +4,7 @@ import requests
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request
 
-from message_processor import process_webhook_post_request
+from message_processor import MessageProcessor
 
 app = Flask(__name__)
 
@@ -15,6 +15,8 @@ WEBHOOK_VERIFY_TOKEN = os.getenv('WEBHOOK_VERIFY_TOKEN')
 
 IS_TESTING = os.getenv('IS_TESTING', 'false').lower() in ['true', '1', 't', 'y', 'yes']
 LOCAL_DEV_URL = os.getenv('LOCAL_DEV_URL', '').strip()
+
+message_processor = MessageProcessor()
 
 
 def forward_to_local_dev(req):
@@ -51,7 +53,7 @@ def webhook():
 
     elif request.method == 'POST':
         data = request.json
-        result = process_webhook_post_request(data)
+        result = message_processor.process_webhook_post_request(data)
 
         return jsonify(result)
 
@@ -59,7 +61,7 @@ def webhook():
 @app.route('/test/webhook', methods=['POST'])
 def test():
     data = request.json
-    result = process_webhook_post_request(data, debug=True)
+    result = message_processor.process_webhook_post_request(data, debug=True)
     return jsonify(result)
 
 

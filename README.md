@@ -39,10 +39,11 @@ A step-by-step series of examples that tell you how to get a development environ
     - Add the following environment variables to the `.env` file:
       ```bash
       GRAPH_API_TOKEN=your_whatsapp_api_key
+      WEBHOOK_VERIFY_TOKEN=your_webhook_verify_token
       MOBILE_ID=your_whatsapp_mobile_id
       OPENAI_API_KEY=your_openai_api_key
       ```
-    - Replace `your_whatsapp_api_key`, `MOBILE_ID` and `your_openai_api_key` with your actual data.
+    - Replace them with your actual data.
     - Save the `.env` file.
     - The application will automatically load these environment variables when it starts.
 

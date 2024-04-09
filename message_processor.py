@@ -3,16 +3,10 @@ import time
 
 from requests import Response
 from whatsapp_wrapper import WhatsAppAPI
-from whatsapp_wrapper.whatsapp_db import DatabaseConfig
 
 from audio_utils import convert_audio_to_mp3
-from configs import BACKUP_FOLDER, ENCODED_DB_CREDENTIALS_JSON, GRAPH_API_TOKEN, MOBILE_ID
+from configs import GRAPH_API_TOKEN, MOBILE_ID
 from openai_wrapper.audio import speech_to_text
-
-database_config: DatabaseConfig = {
-    'credential_encoded_json': ENCODED_DB_CREDENTIALS_JSON,
-    'backup_folder': BACKUP_FOLDER,
-}
 
 
 def whatsapp_error_handler(api_instance: WhatsAppAPI, response: Response, data: dict):
@@ -33,8 +27,7 @@ def whatsapp_error_handler(api_instance: WhatsAppAPI, response: Response, data: 
     raise Exception(f"Failed to send request! Status code: {response.status_code}")
 
 
-wa = WhatsAppAPI(mobile_id=MOBILE_ID, api_token=GRAPH_API_TOKEN, error_handler=whatsapp_error_handler,
-                 database_config=database_config)
+wa = WhatsAppAPI(mobile_id=MOBILE_ID, api_token=GRAPH_API_TOKEN, error_handler=whatsapp_error_handler)
 
 
 def process_webhook_post_request(data, mark_message_as_read: bool = True, debug: bool = False) -> dict:
@@ -58,12 +51,7 @@ def process_webhook_post_request(data, mark_message_as_read: bool = True, debug:
     if message_type == 'audio':
         if not debug:
             awaiting_msg = "Sto trasformando il tuo messaggio audio in testo. Attendere prego..."
-            ret = wa.send_text(recipient_id, awaiting_msg)
-            response_id = ret['messages'][0]['id']
-            data = ret['data']
-            data['id'] = response_id
-            data['timestamp'] = int(time.time())
-            wa.save_message_to_db(data, wa_id)
+            wa.send_text(recipient_id, awaiting_msg)
         media_id = message['audio']['id']
         print(f"Audio message received from {recipient_id}: {media_id}")
         media_file = wa.get_media(media_id)
@@ -76,13 +64,8 @@ def process_webhook_post_request(data, mark_message_as_read: bool = True, debug:
     if debug:
         print(f"Response message: {response_msg}")
     else:
-        ret = wa.send_text(recipient_id, response_msg, reply_to_message_id=message_id)
+        wa.send_text(recipient_id, response_msg, reply_to_message_id=message_id)
         if mark_message_as_read:
             wa.mark_as_read(message_id)
-        response_id = ret['messages'][0]['id']
-        data = ret['data']
-        data['id'] = response_id
-        data['timestamp'] = int(time.time())
-        wa.save_message_to_db(data, wa_id)
 
     return {'success': True}

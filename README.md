@@ -1,8 +1,7 @@
-# chaditt
+# C'Ha Ditt?!
 
-This repository contains a Flask application designed to receive audio messages through a WhatsApp Business number and
-transcribe them into text.
-The project leverages the WhatsApp Business API for audio message reception and employs a powerful audio transcription
+A Flask application designed to receive audio messages through a WhatsApp Business number and transcribe them into text.
+The project leverages the WhatsApp Business API for audio message reception and employs OpenAI API audio transcription
 service to accurately convert speech to text.
 
 ## Getting Started
@@ -15,7 +14,7 @@ purposes.
 What things you need to install the software and how to install them:
 
 - A WhatsApp Business account and the associated API credentials
-- Audio transcription service credentials (e.g., Google Speech-to-Text, IBM Watson Speech to Text)
+- An OpenAI API key for the audio transcription service
 
 ### Installation
 
@@ -34,8 +33,18 @@ A step-by-step series of examples that tell you how to get a development environ
    pip install -r requirements.txt
    ``` 
 
-3. Configure your WhatsApp Business API credentials and the audio transcription service API keys in the `config.py`
-   file.
+3. Configure your WhatsApp Business API credentials and OpenAI API key:
+
+    - Create a `.env` file in the root directory of the project.
+    - Add the following environment variables to the `.env` file:
+      ```bash
+      GRAPH_API_TOKEN=your_whatsapp_api_key
+      MOBILE_ID=your_whatsapp_mobile_id
+      OPENAI_API_KEY=your_openai_api_key
+      ```
+    - Replace `your_whatsapp_api_key`, `MOBILE_ID` and `your_openai_api_key` with your actual data.
+    - Save the `.env` file.
+    - The application will automatically load these environment variables when it starts.
 
 ### Running the Application
 

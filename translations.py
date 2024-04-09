@@ -11,30 +11,35 @@ localized_messages = {
         "unsupported_content": "Mi dispiace, il mio unico scopo è elaborare messaggi audio. "
                                "Non posso ancora elaborare {message_type}.",
         "changed_language": "La tua lingua è stata cambiata in \'{language}\'.",
+        "language_not_supported": "Mi dispiace, non posso ancora elaborare messaggi in \'{language}\'.",
     },
     "es": {
         "audio_processing": "Estoy convirtiendo tu mensaje de audio a texto. Por favor espera...",
         "unsupported_content": "Lo siento, mi único propósito es procesar mensajes de audio. "
                                "No puedo procesar {message_type} aún.",
         "changed_language": "Tu idioma ha sido cambiado a \'{language}\'.",
+        "language_not_supported": "Lo siento, no puedo procesar mensajes en \'{language}\' aún.",
     },
     "pt": {
         "audio_processing": "Estou convertendo sua mensagem de áudio em texto. Por favor, aguarde...",
         "unsupported_content": "Desculpe, meu único propósito é processar mensagens de áudio. "
                                "Não consigo processar {message_type} ainda.",
         "changed_language": "Seu idioma foi alterado para \'{language}\'.",
+        "language_not_supported": "Desculpe, ainda não consigo processar mensagens em \'{language}\'.",
     },
     "fr": {
         "audio_processing": "Je convertis votre message audio en texte. Veuillez patienter...",
         "unsupported_content": "Désolé, mon seul but est de traiter les messages audio. "
                                "Je ne peux pas traiter {message_type} encore.",
         "changed_language": "Votre langue a été changée en \'{language}\'.",
+        "language_not_supported": "Désolé, je ne peux pas encore traiter les messages en \'{language}\'.",
     },
     "de": {
         "audio_processing": "Ich konvertiere Ihre Sprachnachricht in Text. Bitte warten...",
         "unsupported_content": "Entschuldigung, mein einziger Zweck ist es, Sprachnachrichten zu verarbeiten. "
                                "Ich kann {message_type} noch nicht verarbeiten.",
         "changed_language": "Ihre Sprache wurde auf \'{language}\' geändert.",
+        "language_not_supported": "Entschuldigung, ich kann Nachrichten in \'{language}\' noch nicht verarbeiten.",
     },
 }
 

@@ -2,4 +2,4 @@
 # config.sh - Common configuration for our shell scripts.
 
 # Application Name
-APP_NAME='av-chaditt'
+APP_NAME='axtwo-chaditt'

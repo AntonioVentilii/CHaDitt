@@ -3,7 +3,7 @@ import json
 from whatsapp_wrapper import WhatsAppAPI
 from whatsapp_wrapper.audio_utilities import convert_audio_to_mp3
 
-from configs import GRAPH_API_TOKEN, MOBILE_ID
+from configs import DEBUG_CHAT_IDS, GRAPH_API_TOKEN, MOBILE_ID
 from openai_wrapper.audio import speech_to_text
 from openai_wrapper.language import get_intended_language_iso
 from translations import DEFAULT_LANGUAGE, check_supported_language, get_localized_message
@@ -21,7 +21,8 @@ class MessageProcessor:
         return self.user_to_language.get(user_id, DEFAULT_LANGUAGE)
 
     def process_webhook_post_request(self, data, mark_message_as_read: bool = True, debug: bool = False) -> dict:
-        print(f"Webhook request received:\n{json.dumps(data, indent=2)}")
+        if not debug:
+            print(f"Webhook request received:\n{json.dumps(data, indent=2)}")
         wa = self.wa
         entry = data['entry'][0]
         changes = entry['changes']
@@ -34,6 +35,9 @@ class MessageProcessor:
         language = self.get_user_language(wa_id)
         message_type = message['type']
         recipient_id = message['from']
+        if debug and recipient_id not in DEBUG_CHAT_IDS:
+            print(f"User {recipient_id} is not in debug chat ids. Ignoring message.")
+            return {'success': True}
         banned_users = wa.banned_users
         if recipient_id in banned_users:
             print(f"User {recipient_id} is banned. Ignoring message.")
@@ -42,9 +46,9 @@ class MessageProcessor:
         if mark_message_as_read:
             wa.mark_as_read(message_id)
         if message_type == 'audio':
-            if not debug:
-                awaiting_msg = get_localized_message(language, 'audio_processing')
-                wa.send_text(recipient_id, awaiting_msg)
+            awaiting_msg = get_localized_message(language, 'audio_processing')
+            awaiting_msg = f"*DEBUG*: {awaiting_msg}" if debug else awaiting_msg
+            wa.send_text(recipient_id, awaiting_msg)
             media_id = message['audio']['id']
             print(f"Audio message received from {recipient_id}: {media_id}")
             media_file = wa.get_media(media_id)
@@ -61,10 +65,10 @@ class MessageProcessor:
             response_msg = get_localized_message(language, 'unsupported_content', message_type=message_type)
 
         if debug:
-            print(f"Response message: {response_msg}")
-        else:
-            wa.send_text(recipient_id, response_msg, reply_to_message_id=message_id)
-            if mark_message_as_read:
-                wa.mark_as_read(message_id)
+            response_msg = f"*DEBUG*: {response_msg}"
+
+        wa.send_text(recipient_id, response_msg, reply_to_message_id=message_id)
+        if mark_message_as_read:
+            wa.mark_as_read(message_id)
 
         return {'success': True}

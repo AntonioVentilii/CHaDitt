@@ -2,7 +2,5 @@ flask
 requests
 python-dotenv
 openai
-openai-whisper
-pydub
 gunicorn
 whatsapp-wrapper

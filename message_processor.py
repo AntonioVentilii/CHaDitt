@@ -68,11 +68,11 @@ class MessageProcessor:
             self.set_user_message(wa_id, message_id, text)
             header = loc('header')
             footer = loc('footer')
-            response_msg = f'*{header}*:\n\n{text}\n\n{footer}'
+            response_msg = f'*{header}*:\n\n{text}\n\n_{footer}_'
         elif message_type == 'text':
             incoming_msg = message['text']['body']
             print(f"Message received from {recipient_id}: {incoming_msg}")
-            context_id = message.get('context', {}).get('message_id')
+            context_id = message.get('context', {}).get('id')
             if context_id:
                 try:
                     choice = int(incoming_msg.lower().strip())

@@ -6,12 +6,11 @@ localized_messages = {
         "changed_language": "Your language has been changed to \'{language}\'.",
         "language_not_supported": "Sorry, I can't process messages in \'{language}\' yet.",
         "header": "TRANSCRIPTION",
-        "footer": """
-            Answer this message with:
-            1 - Try and correct the grammar.
-            2 - Summary.
-            3 - Translation.
-            """,
+        "footer": """Answer this message with:
+1 - Try and correct the grammar.
+2 - Summary.
+3 - Translation.
+""",
         "choice_not_recognized": "Choice not recognized. Please choose between:",
         "context_not_found": "It seems I forgot already about that message. Please send it again.",
         "correction_header": "CORRECTION",
@@ -25,12 +24,11 @@ localized_messages = {
         "changed_language": "La tua lingua è stata cambiata in \'{language}\'.",
         "language_not_supported": "Mi dispiace, non posso ancora elaborare messaggi in \'{language}\'.",
         "header": "TRASCRIZIONE",
-        "footer": """
-            Rispondi a questo messaggio con:
-            1 - Prova a correggere la grammatica.
-            2 - Riassunto.
-            3 - Traduzione.
-            """,
+        "footer": """Rispondi a questo messaggio con:
+1 - Prova a correggere la grammatica.
+2 - Riassunto.
+3 - Traduzione.
+""",
         "choice_not_recognized": "Scelta non riconosciuta. Scegli tra:",
         "context_not_found": "Sembra che abbia già dimenticato quel messaggio. Per favore invialo di nuovo.",
         "correction_header": "CORREZIONE",
@@ -44,12 +42,11 @@ localized_messages = {
         "changed_language": "Tu idioma ha sido cambiado a \'{language}\'.",
         "language_not_supported": "Lo siento, no puedo procesar mensajes en \'{language}\' aún.",
         "header": "TRANSCRIPCIÓN",
-        "footer": """
-            Responde a este mensaje con:
-            1 - Intentar corregir la gramática.
-            2 - Resumen.
-            3 - Traducción.
-            """,
+        "footer": """Responde a este mensaje con:
+1 - Intentar corregir la gramática.
+2 - Resumen.
+3 - Traducción.
+""",
         "choice_not_recognized": "Opción no reconocida. Por favor elige entre:",
         "context_not_found": "Parece que ya olvidé ese mensaje. Por favor envíalo de nuevo.",
         "correction_header": "CORRECCIÓN",
@@ -63,12 +60,11 @@ localized_messages = {
         "changed_language": "Seu idioma foi alterado para \'{language}\'.",
         "language_not_supported": "Desculpe, ainda não consigo processar mensagens em \'{language}\'.",
         "header": "TRANSCRIÇÃO",
-        "footer": """
-            Responda a esta mensagem com:
-            1 - Tentar corrigir a gramática.
-            2 - Resumo.
-            3 - Tradução.
-            """,
+        "footer": """Responda a esta mensagem com:
+1 - Tentar corrigir a gramática.
+2 - Resumo.
+3 - Tradução.
+""",
         "choice_not_recognized": "Escolha não reconhecida. Por favor, escolha entre:",
         "context_not_found": "Parece que já esqueci daquela mensagem. Por favor, envie-a novamente.",
         "correction_header": "CORREÇÃO",
@@ -82,12 +78,11 @@ localized_messages = {
         "changed_language": "Votre langue a été changée en \'{language}\'.",
         "language_not_supported": "Désolé, je ne peux pas encore traiter les messages en \'{language}\'.",
         "header": "TRANSCRIPTION",
-        "footer": """
-            Répondez à ce message avec:
-            1 - Essayer de corriger la grammaire.
-            2 - Résumé.
-            3 - Traduction.
-            """,
+        "footer": """Répondez à ce message avec:
+1 - Essayer de corriger la grammaire.
+2 - Résumé.
+3 - Traduction.
+""",
         "choice_not_recognized": "Choix non reconnu. Veuillez choisir entre:",
         "context_not_found": "Il semble que j'ai déjà oublié ce message. Veuillez le renvoyer.",
         "correction_header": "CORRECTION",
@@ -101,12 +96,11 @@ localized_messages = {
         "changed_language": "Ihre Sprache wurde auf \'{language}\' geändert.",
         "language_not_supported": "Entschuldigung, ich kann Nachrichten in \'{language}\' noch nicht verarbeiten.",
         "header": "TRANSCRIPTION",
-        "footer": """
-            Beantworten Sie diese Nachricht mit:
-            1 - Versuchen Sie, die Grammatik zu korrigieren.
-            2 - Zusammenfassung.
-            3 - Übersetzung.
-            """,
+        "footer": """Beantworten Sie diese Nachricht mit:
+1 - Versuchen Sie, die Grammatik zu korrigieren.
+2 - Zusammenfassung.
+3 - Übersetzung.
+""",
         "choice_not_recognized": "Auswahl nicht erkannt. Bitte wählen Sie zwischen:",
         "context_not_found": "Es scheint, als hätte ich diese Nachricht bereits vergessen. Bitte senden Sie sie erneut.",
         "correction_header": "KORREKTUR",
@@ -116,6 +110,8 @@ localized_messages = {
 }
 
 DEFAULT_LANGUAGE = 'it'
+
+AVAILABLE_LANGUAGES = list(localized_messages.keys())
 
 
 def get_localized_message(language_iso: str, message_key: str, **kwargs) -> str:

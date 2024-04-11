@@ -10,11 +10,21 @@ from openai_wrapper.language import get_intended_language_iso
 from translations import DEFAULT_LANGUAGE, check_supported_language, get_localized_message
 
 
+def to_bold(text: str) -> str:
+    text_parts = text.split('\n')
+    return '\n'.join([f'*{part}*' for part in text_parts])
+
+
+def to_italic(text: str) -> str:
+    text_parts = text.split('\n')
+    return '\n'.join([f'_{part}_' for part in text_parts])
+
+
 class MessageProcessor:
     def __init__(self):
         self.wa = WhatsAppAPI(mobile_id=MOBILE_ID, api_token=GRAPH_API_TOKEN)
         self.user_to_language = {}
-        self.user_to_messages = {}
+        self.user_to_transcriptions = {}
 
     def set_user_language(self, user_id: str, language: str):
         self.user_to_language[user_id] = language
@@ -22,13 +32,13 @@ class MessageProcessor:
     def get_user_language(self, user_id: str) -> str:
         return self.user_to_language.get(user_id, DEFAULT_LANGUAGE)
 
-    def set_user_message(self, user_id: str, message_id: str, text: str):
-        if user_id not in self.user_to_messages:
-            self.user_to_messages[user_id] = {}
-        self.user_to_messages[user_id][message_id] = text
+    def set_user_transcription(self, user_id: str, message_id: str, text: str):
+        if user_id not in self.user_to_transcriptions:
+            self.user_to_transcriptions[user_id] = {}
+        self.user_to_transcriptions[user_id][message_id] = text
 
-    def get_user_message(self, user_id: str, message_id: str) -> str:
-        return self.user_to_messages.get(user_id, {}).get(message_id, '')
+    def get_user_transcription(self, user_id: str, message_id: str) -> str:
+        return self.user_to_transcriptions.get(user_id, {}).get(message_id, '')
 
     def process_webhook_post_request(self, data, mark_message_as_read: bool = True, debug: bool = False) -> dict:
         if not debug:
@@ -56,6 +66,7 @@ class MessageProcessor:
         message_id = message['id']
         if mark_message_as_read:
             wa.mark_as_read(message_id)
+        transcription = None
         if message_type == 'audio':
             awaiting_msg = loc('audio_processing')
             awaiting_msg = f"*DEBUG*: {awaiting_msg}" if debug else awaiting_msg
@@ -64,11 +75,10 @@ class MessageProcessor:
             print(f"Audio message received from {recipient_id}: {media_id}")
             media_file = wa.get_media(media_id)
             media_file_mp3 = convert_audio_to_mp3(media_file)
-            text = speech_to_text(media_file_mp3)
-            self.set_user_message(wa_id, message_id, text)
+            transcription = speech_to_text(media_file_mp3)
             header = loc('header')
             footer = loc('footer')
-            response_msg = f'*{header}*:\n\n{text}\n\n_{footer}_'
+            response_msg = f'*{header}*:\n\n{transcription}\n\n{to_italic(footer)}'
         elif message_type == 'text':
             incoming_msg = message['text']['body']
             print(f"Message received from {recipient_id}: {incoming_msg}")
@@ -78,7 +88,7 @@ class MessageProcessor:
                     choice = int(incoming_msg.lower().strip())
                 except ValueError:
                     choice = None
-                context_msg = self.get_user_message(wa_id, context_id)
+                context_msg = self.get_user_transcription(wa_id, context_id)
                 if context_msg:
                     if choice == 1:
                         header = loc('correction_header')
@@ -105,7 +115,10 @@ class MessageProcessor:
         if debug:
             response_msg = f"*DEBUG*: {response_msg}"
 
-        wa.send_text(recipient_id, response_msg, reply_to_message_id=message_id)
+        ret = wa.send_text(recipient_id, response_msg, reply_to_message_id=message_id)
+        if message_type == 'audio' and transcription:
+            answer_id = ret['messages'][0]['id']
+            self.set_user_transcription(wa_id, answer_id, transcription)
         if mark_message_as_read:
             wa.mark_as_read(message_id)
 

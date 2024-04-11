@@ -34,7 +34,8 @@ def correct_text(text: str) -> str:
 
 
 def summarize_text(text: str) -> str:
-    prompt = "Provide a concise summary of the following text."
+    prompt = "Provide a concise summary of the following text, without losing its meaning and without decorative " \
+             "sentences like 'In this essay, I will...' or 'This text is about...'."
     ret = simple_query(prompt, text)
     return ret
 

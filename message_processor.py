@@ -9,6 +9,9 @@ from openai_wrapper.chat import correct_text, summarize_text
 from openai_wrapper.language import get_intended_language_iso
 from translations import DEFAULT_LANGUAGE, check_supported_language, get_localized_message
 
+PROCESSING_REACTION = '👂'
+DONE_REACTION = '✅'
+
 
 def to_bold(text: str) -> str:
     text_parts = text.split('\n')
@@ -68,9 +71,7 @@ class MessageProcessor:
             wa.mark_as_read(message_id)
         transcription = None
         if message_type == 'audio':
-            awaiting_msg = loc('audio_processing')
-            awaiting_msg = f"*DEBUG*: {awaiting_msg}" if debug else awaiting_msg
-            wa.send_text(recipient_id, awaiting_msg)
+            wa.send_reaction(recipient_id, message_id, PROCESSING_REACTION, save_to_db=False)
             media_id = message['audio']['id']
             print(f"Audio message received from {recipient_id}: {media_id}")
             media_file = wa.get_media(media_id)
@@ -119,6 +120,7 @@ class MessageProcessor:
         if message_type == 'audio' and transcription:
             answer_id = ret['messages'][0]['id']
             self.set_user_transcription(wa_id, answer_id, transcription)
+            wa.send_reaction(recipient_id, message_id, DONE_REACTION, save_to_db=False)
         if mark_message_as_read:
             wa.mark_as_read(message_id)
 

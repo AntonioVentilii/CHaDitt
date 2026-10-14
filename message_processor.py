@@ -133,10 +133,13 @@ class MessageProcessor:
             if message_type == 'audio':
                 self.send_reaction(recipient_id, message_id, FAILED_REACTION)
             raise
-        if message_type == 'audio' and transcription:
-            answer_id = ret['messages'][0]['id']
-            self.set_user_transcription(wa_id, answer_id, transcription)
-            self.send_reaction(recipient_id, message_id, DONE_REACTION)
+        if message_type == 'audio':
+            if transcription:
+                answer_id = ret['messages'][0]['id']
+                self.set_user_transcription(wa_id, answer_id, transcription)
+                self.send_reaction(recipient_id, message_id, DONE_REACTION)
+            else:
+                self.send_reaction(recipient_id, message_id, FAILED_REACTION)
         if mark_message_as_read:
             wa.mark_as_read(message_id)
 

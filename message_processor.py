@@ -9,6 +9,10 @@ from openai_wrapper.chat import correct_text, summarize_text
 from openai_wrapper.language import get_intended_language_iso
 from translations import DEFAULT_LANGUAGE, check_supported_language, get_localized_message
 
+PROCESSING_REACTION = '👂'
+DONE_REACTION = '✅'
+FAILED_REACTION = '❌'
+
 
 def to_bold(text: str) -> str:
     text_parts = text.split('\n')
@@ -40,6 +44,12 @@ class MessageProcessor:
     def get_user_transcription(self, user_id: str, message_id: str) -> str:
         return self.user_to_transcriptions.get(user_id, {}).get(message_id, '')
 
+    def send_reaction(self, recipient_id: str, message_id: str, emoji: str):
+        try:
+            self.wa.send_reaction(recipient_id, message_id, emoji, save_to_db=False)
+        except Exception as e:
+            print(f"Failed to send reaction {emoji} to message {message_id}: {e}")
+
     def process_webhook_post_request(self, data, mark_message_as_read: bool = True, debug: bool = False) -> dict:
         if not debug:
             print(f"Webhook request received:\n{json.dumps(data, indent=2)}")
@@ -68,14 +78,20 @@ class MessageProcessor:
             wa.mark_as_read(message_id)
         transcription = None
         if message_type == 'audio':
-            awaiting_msg = loc('audio_processing')
-            awaiting_msg = f"*DEBUG*: {awaiting_msg}" if debug else awaiting_msg
-            wa.send_text(recipient_id, awaiting_msg)
+            self.send_reaction(recipient_id, message_id, PROCESSING_REACTION)
             media_id = message['audio']['id']
             print(f"Audio message received from {recipient_id}: {media_id}")
-            media_file = wa.get_media(media_id)
-            media_file_mp3 = convert_audio_to_mp3(media_file)
-            transcription = speech_to_text(media_file_mp3)
+            try:
+                media_file = wa.get_media(media_id)
+                media_file_mp3 = convert_audio_to_mp3(media_file)
+                transcription = speech_to_text(media_file_mp3).strip()
+            except Exception:
+                self.send_reaction(recipient_id, message_id, FAILED_REACTION)
+                raise
+            if not transcription:
+                print(f"Empty transcription for audio message {message_id} from {recipient_id}")
+                self.send_reaction(recipient_id, message_id, FAILED_REACTION)
+                return {'success': True}
             header = loc('header')
             footer = loc('footer')
             response_msg = f'*{header}*:\n\n{transcription}\n\n{to_italic(footer)}'
@@ -115,10 +131,16 @@ class MessageProcessor:
         if debug:
             response_msg = f"*DEBUG*: {response_msg}"
 
-        ret = wa.send_text(recipient_id, response_msg, reply_to_message_id=message_id)
-        if message_type == 'audio' and transcription:
+        try:
+            ret = wa.send_text(recipient_id, response_msg, reply_to_message_id=message_id)
+        except Exception:
+            if message_type == 'audio':
+                self.send_reaction(recipient_id, message_id, FAILED_REACTION)
+            raise
+        if message_type == 'audio':
             answer_id = ret['messages'][0]['id']
             self.set_user_transcription(wa_id, answer_id, transcription)
+            self.send_reaction(recipient_id, message_id, DONE_REACTION)
         if mark_message_as_read:
             wa.mark_as_read(message_id)
 

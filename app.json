@@ -1,4 +1,12 @@
 {
   "name": "CHaDitt",
-  "stack": "heroku-26"
+  "stack": "heroku-26",
+  "buildpacks": [
+    {
+      "url": "heroku/python"
+    },
+    {
+      "url": "https://github.com/jonathanong/heroku-buildpack-ffmpeg-latest.git"
+    }
+  ]
 }

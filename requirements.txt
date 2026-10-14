@@ -21,14 +21,10 @@ cryptography==50.0.2
     # via google-auth
 ffmpeg-downloader==0.5.3
     # via whatsapp-wrapper
-ffmpeg-python==0.2.0
-    # via whatsapp-wrapper
 firestore-wrapper==0.3.4
     # via whatsapp-wrapper
 flask==3.1.3
     # via -r requirements.in
-future==1.0.0
-    # via ffmpeg-python
 google-api-core==2.42.0
     # via
     #   google-cloud-core
@@ -106,8 +102,6 @@ pydantic==2.14.1
     # via openai
 pydantic-core==2.50.1
     # via pydantic
-pydub==0.25.1
-    # via whatsapp-wrapper
 python-dotenv==1.2.4
     # via -r requirements.in
 requests==2.34.2
@@ -144,5 +138,5 @@ urllib3==2.8.0
     # via requests
 werkzeug==3.1.9
     # via flask
-whatsapp-wrapper==0.1.6
+whatsapp-wrapper==0.1.7
     # via -r requirements.in

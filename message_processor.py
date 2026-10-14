@@ -1,8 +1,8 @@
 import json
 
 from whatsapp_wrapper import WhatsAppAPI
+from whatsapp_wrapper.audio_utilities import convert_audio_to_mp3
 
-from audio_conversion import convert_to_mp3
 from configs import DEBUG_CHAT_IDS, GRAPH_API_TOKEN, MOBILE_ID
 from openai_wrapper.audio import speech_to_text
 from openai_wrapper.chat import correct_text, summarize_text
@@ -83,7 +83,7 @@ class MessageProcessor:
             print(f"Audio message received from {recipient_id}: {media_id}")
             try:
                 media_file = wa.get_media(media_id)
-                media_file_mp3 = convert_to_mp3(media_file)
+                media_file_mp3 = convert_audio_to_mp3(media_file)
                 transcription = speech_to_text(media_file_mp3).strip()
             except Exception:
                 self.send_reaction(recipient_id, message_id, FAILED_REACTION)

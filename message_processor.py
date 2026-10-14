@@ -11,6 +11,7 @@ from translations import DEFAULT_LANGUAGE, check_supported_language, get_localiz
 
 PROCESSING_REACTION = '👂'
 DONE_REACTION = '✅'
+FAILED_REACTION = '❌'
 
 
 def to_bold(text: str) -> str:
@@ -80,9 +81,13 @@ class MessageProcessor:
             self.send_reaction(recipient_id, message_id, PROCESSING_REACTION)
             media_id = message['audio']['id']
             print(f"Audio message received from {recipient_id}: {media_id}")
-            media_file = wa.get_media(media_id)
-            media_file_mp3 = convert_audio_to_mp3(media_file)
-            transcription = speech_to_text(media_file_mp3)
+            try:
+                media_file = wa.get_media(media_id)
+                media_file_mp3 = convert_audio_to_mp3(media_file)
+                transcription = speech_to_text(media_file_mp3).strip()
+            except Exception:
+                self.send_reaction(recipient_id, message_id, FAILED_REACTION)
+                raise
             header = loc('header')
             footer = loc('footer')
             response_msg = f'*{header}*:\n\n{transcription}\n\n{to_italic(footer)}'
@@ -122,11 +127,15 @@ class MessageProcessor:
         if debug:
             response_msg = f"*DEBUG*: {response_msg}"
 
-        ret = wa.send_text(recipient_id, response_msg, reply_to_message_id=message_id)
-        if message_type == 'audio':
-            if transcription:
-                answer_id = ret['messages'][0]['id']
-                self.set_user_transcription(wa_id, answer_id, transcription)
+        try:
+            ret = wa.send_text(recipient_id, response_msg, reply_to_message_id=message_id)
+        except Exception:
+            if message_type == 'audio':
+                self.send_reaction(recipient_id, message_id, FAILED_REACTION)
+            raise
+        if message_type == 'audio' and transcription:
+            answer_id = ret['messages'][0]['id']
+            self.set_user_transcription(wa_id, answer_id, transcription)
             self.send_reaction(recipient_id, message_id, DONE_REACTION)
         if mark_message_as_read:
             wa.mark_as_read(message_id)

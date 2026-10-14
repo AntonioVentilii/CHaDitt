@@ -88,6 +88,10 @@ class MessageProcessor:
             except Exception:
                 self.send_reaction(recipient_id, message_id, FAILED_REACTION)
                 raise
+            if not transcription:
+                print(f"Empty transcription for audio message {message_id} from {recipient_id}")
+                self.send_reaction(recipient_id, message_id, FAILED_REACTION)
+                return {'success': True}
             header = loc('header')
             footer = loc('footer')
             response_msg = f'*{header}*:\n\n{transcription}\n\n{to_italic(footer)}'
@@ -134,12 +138,9 @@ class MessageProcessor:
                 self.send_reaction(recipient_id, message_id, FAILED_REACTION)
             raise
         if message_type == 'audio':
-            if transcription:
-                answer_id = ret['messages'][0]['id']
-                self.set_user_transcription(wa_id, answer_id, transcription)
-                self.send_reaction(recipient_id, message_id, DONE_REACTION)
-            else:
-                self.send_reaction(recipient_id, message_id, FAILED_REACTION)
+            answer_id = ret['messages'][0]['id']
+            self.set_user_transcription(wa_id, answer_id, transcription)
+            self.send_reaction(recipient_id, message_id, DONE_REACTION)
         if mark_message_as_read:
             wa.mark_as_read(message_id)
 

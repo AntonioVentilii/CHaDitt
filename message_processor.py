@@ -43,6 +43,12 @@ class MessageProcessor:
     def get_user_transcription(self, user_id: str, message_id: str) -> str:
         return self.user_to_transcriptions.get(user_id, {}).get(message_id, '')
 
+    def send_reaction(self, recipient_id: str, message_id: str, emoji: str):
+        try:
+            self.wa.send_reaction(recipient_id, message_id, emoji, save_to_db=False)
+        except Exception as e:
+            print(f"Failed to send reaction {emoji} to message {message_id}: {e}")
+
     def process_webhook_post_request(self, data, mark_message_as_read: bool = True, debug: bool = False) -> dict:
         if not debug:
             print(f"Webhook request received:\n{json.dumps(data, indent=2)}")
@@ -71,7 +77,7 @@ class MessageProcessor:
             wa.mark_as_read(message_id)
         transcription = None
         if message_type == 'audio':
-            wa.send_reaction(recipient_id, message_id, PROCESSING_REACTION, save_to_db=False)
+            self.send_reaction(recipient_id, message_id, PROCESSING_REACTION)
             media_id = message['audio']['id']
             print(f"Audio message received from {recipient_id}: {media_id}")
             media_file = wa.get_media(media_id)
@@ -117,10 +123,11 @@ class MessageProcessor:
             response_msg = f"*DEBUG*: {response_msg}"
 
         ret = wa.send_text(recipient_id, response_msg, reply_to_message_id=message_id)
-        if message_type == 'audio' and transcription:
-            answer_id = ret['messages'][0]['id']
-            self.set_user_transcription(wa_id, answer_id, transcription)
-            wa.send_reaction(recipient_id, message_id, DONE_REACTION, save_to_db=False)
+        if message_type == 'audio':
+            if transcription:
+                answer_id = ret['messages'][0]['id']
+                self.set_user_transcription(wa_id, answer_id, transcription)
+            self.send_reaction(recipient_id, message_id, DONE_REACTION)
         if mark_message_as_read:
             wa.mark_as_read(message_id)
 

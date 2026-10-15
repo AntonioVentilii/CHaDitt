@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Install the locked dependencies
+        run: pip install -r requirements.txt
+
+      - name: Import the app the way gunicorn does
+        env:
+          GRAPH_API_TOKEN: dummy
+          MOBILE_ID: dummy
+          OPENAI_API_KEY: dummy
+        run: python -c "import app"
+
+      - name: Convert a WhatsApp voice note to mp3
+        run: |
+          ffmpeg -loglevel error -f lavfi -i sine=frequency=440:duration=2 -c:a libopus voice.ogg
+          python -c "from whatsapp_wrapper.audio_utilities import convert_audio_to_mp3; print(convert_audio_to_mp3('voice.ogg'))"
+          test -s voice.mp3

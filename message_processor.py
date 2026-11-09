@@ -290,15 +290,19 @@ class MessageProcessor:
 
     def transcribe_again(self, message: dict, wa_id: str, media_id: str, context_id: str) -> str:
         """The transcription of a voice note whose transcription a restart wiped from memory, '' if WhatsApp
-        no longer has the voice note."""
+        no longer gives the voice note. Any later failure (conversion, transcription) is raised."""
         recipient_id = message['from']
         message_id = message['id']
         started = time.monotonic()
+        progress = []
         try:
-            transcription = self.transcribe(media_id)
+            transcription = self.transcribe(media_id, progress)
         except Exception as e:
-            log_outcome('retranscribe', recipient_id, message_id, 'failed', started, describe(e))
-            return ''
+            stage = progress[-1] if progress else 'download'
+            log_outcome('retranscribe', recipient_id, message_id, f'failed at {stage}', started, describe(e))
+            if stage == 'download':
+                return ''
+            raise
         log_outcome('retranscribe', recipient_id, message_id, 'ok', started, f'{len(transcription)} chars')
         if transcription:
             # Answers reply to the buttons, the message that showed the transcription isn't known anymore.
@@ -329,17 +333,17 @@ class MessageProcessor:
             log_outcome(action, recipient_id, message_id, 'menu', started)
             return
         self.send_reaction(recipient_id, message_id, WORKING_REACTION)
-        if not transcription:
-            transcription = self.transcribe_again(message, wa_id, media_id, context_id)
-            transcription_message_id = context_id
-        if not transcription:
-            log_outcome(action, recipient_id, message_id, 'context not found', started)
-            self.send_reaction(recipient_id, message_id, FAILED_REACTION)
-            reply = get_localized_message(language, 'context_not_found')
-            self.send_text(recipient_id, self.debug_prefix(reply, debug), message_id)
-            return
         label = f'{action} {target}' if target else action
         try:
+            if not transcription:
+                transcription = self.transcribe_again(message, wa_id, media_id, context_id)
+                transcription_message_id = context_id
+            if not transcription:
+                log_outcome(label, recipient_id, message_id, 'context not found', started)
+                self.send_reaction(recipient_id, message_id, FAILED_REACTION)
+                reply = get_localized_message(language, 'context_not_found')
+                self.send_text(recipient_id, self.debug_prefix(reply, debug), message_id)
+                return
             result = run_action(action, transcription, target or language)
             title = f"*{get_localized_message(language, f'{action}_header')}*"
             if target:

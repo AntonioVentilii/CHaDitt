@@ -115,14 +115,29 @@ DEFAULT_LANGUAGE = 'it'
 
 AVAILABLE_LANGUAGES = list(localized_messages.keys())
 
-# A sender's language before they choose one, from the country calling code their WhatsApp id starts with.
+# A sender's language before they choose one, from the country calling code their WhatsApp id starts with: the
+# countries where one supported language is the main one. Codes shared by several supported languages
+# (Switzerland 41, Belgium 32, Luxembourg 352, Cameroon 237) are left out, so those senders get the default
+# language until they write which one they want. The longest matching code wins, so +1 787 (Puerto Rico) is Spanish
+# while the rest of +1 is English.
 COUNTRY_CALLING_CODE_LANGUAGES = {
-    '1': 'en', '44': 'en', '353': 'en', '61': 'en',
-    '39': 'it',
-    '55': 'pt', '351': 'pt',
-    '34': 'es', '52': 'es', '54': 'es',
-    '33': 'fr',
-    '49': 'de', '43': 'de',
+    # English
+    '1': 'en', '44': 'en', '353': 'en', '61': 'en', '64': 'en', '27': 'en', '234': 'en', '233': 'en', '254': 'en',
+    '256': 'en', '263': 'en', '260': 'en', '265': 'en', '267': 'en', '1876': 'en', '1868': 'en',
+    # Italian
+    '39': 'it', '378': 'it', '379': 'it',
+    # Portuguese
+    '55': 'pt', '351': 'pt', '244': 'pt', '258': 'pt', '238': 'pt', '245': 'pt', '239': 'pt', '670': 'pt',
+    # Spanish
+    '34': 'es', '52': 'es', '54': 'es', '56': 'es', '57': 'es', '58': 'es', '51': 'es', '53': 'es', '591': 'es',
+    '593': 'es', '595': 'es', '598': 'es', '502': 'es', '503': 'es', '504': 'es', '505': 'es', '506': 'es',
+    '507': 'es', '240': 'es', '1787': 'es', '1939': 'es', '1809': 'es', '1829': 'es', '1849': 'es',
+    # French
+    '33': 'fr', '377': 'fr', '221': 'fr', '223': 'fr', '224': 'fr', '225': 'fr', '226': 'fr', '227': 'fr',
+    '228': 'fr', '229': 'fr', '241': 'fr', '242': 'fr', '243': 'fr', '261': 'fr', '509': 'fr', '262': 'fr',
+    '590': 'fr', '594': 'fr', '596': 'fr', '687': 'fr', '689': 'fr',
+    # German
+    '49': 'de', '43': 'de', '423': 'de',
 }
 LONGEST_CALLING_CODE = max(len(code) for code in COUNTRY_CALLING_CODE_LANGUAGES)
 

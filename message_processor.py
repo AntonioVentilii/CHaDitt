@@ -89,13 +89,14 @@ class MessageProcessor:
     def get_user_language(self, user_id: str) -> str:
         return self.user_to_language.get(user_id) or language_for_wa_id(user_id)
 
-    def set_user_transcription(self, user_id: str, message_id: str, text: str):
+    def set_user_transcription(self, user_id: str, message_id: str, text: str, transcription_message_id: str):
+        """Remembers the transcription a message belongs to and the message that shows it, which answers reply to."""
         if user_id not in self.user_to_transcriptions:
             self.user_to_transcriptions[user_id] = {}
-        self.user_to_transcriptions[user_id][message_id] = text
+        self.user_to_transcriptions[user_id][message_id] = (text, transcription_message_id)
 
-    def get_user_transcription(self, user_id: str, message_id: str) -> str:
-        return self.user_to_transcriptions.get(user_id, {}).get(message_id, '')
+    def get_user_transcription(self, user_id: str, message_id: str) -> tuple[str, str | None]:
+        return self.user_to_transcriptions.get(user_id, {}).get(message_id, ('', None))
 
     def send_reaction(self, recipient_id: str, message_id: str, emoji: str):
         try:
@@ -130,7 +131,8 @@ class MessageProcessor:
         return ret['messages'][0]['id']
 
     def send_transcription(self, to: str, transcription: str, reply_to: str, language: str) -> list[str]:
-        """Sends the transcription with the action buttons and returns the ids a reply can point to."""
+        """Sends the transcription with the action buttons and returns the ids a reply can point to, the message
+        that shows the transcription first."""
         header = get_localized_message(language, 'header')
         text = f'*{header}*\n\n{transcription}'
         if len(text) <= BUTTONS_BODY_MAX_CHARS:
@@ -209,7 +211,7 @@ class MessageProcessor:
             self.send_reaction(recipient_id, message_id, FAILED_REACTION)
             raise
         for answer_id in answer_ids:
-            self.set_user_transcription(wa_id, answer_id, transcription)
+            self.set_user_transcription(wa_id, answer_id, transcription, answer_ids[0])
         self.send_reaction(recipient_id, message_id, DONE_REACTION)
         log_outcome('audio', recipient_id, message_id, 'ok', started,
                     f'{len(transcription)} chars, reply {short_id(answer_ids[-1])}')
@@ -221,7 +223,7 @@ class MessageProcessor:
         language = self.get_user_language(wa_id)
         started = time.monotonic()
         context_id = message.get('context', {}).get('id')
-        transcription = self.get_user_transcription(wa_id, context_id)
+        transcription, transcription_message_id = self.get_user_transcription(wa_id, context_id)
         if not transcription:
             log_outcome(action, recipient_id, message_id, 'context not found', started)
             reply = get_localized_message(language, 'context_not_found')
@@ -230,7 +232,8 @@ class MessageProcessor:
         try:
             result = run_action(action, transcription, language)
             header = get_localized_message(language, f'{action}_header')
-            self.send_text(recipient_id, self.debug_prefix(f'*{header}*\n\n{result}', debug), context_id)
+            self.send_text(recipient_id, self.debug_prefix(f'*{header}*\n\n{result}', debug),
+                           transcription_message_id)
         except Exception as e:
             log_outcome(action, recipient_id, message_id, 'failed', started, describe(e))
             self.send_failure(recipient_id, message_id, language)

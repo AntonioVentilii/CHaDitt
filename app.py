@@ -15,6 +15,7 @@ WEBHOOK_VERIFY_TOKEN = os.getenv('WEBHOOK_VERIFY_TOKEN')
 
 IS_TESTING = os.getenv('IS_TESTING', 'false').lower() in ['true', '1', 't', 'y', 'yes']
 LOCAL_DEV_URL = os.getenv('LOCAL_DEV_URL', '').strip()
+LOCAL_DEV_TIMEOUT_SECONDS = 5
 
 message_processor = MessageProcessor()
 
@@ -24,7 +25,11 @@ def forward_to_local_dev(req):
         return "LOCAL_DEV_URL is not set", 500
     local_dev_url = f'{LOCAL_DEV_URL}/test/webhook'
     headers = {'Content-Type': 'application/json'}
-    response = requests.post(local_dev_url, headers=headers, data=req.data)
+    try:
+        response = requests.post(local_dev_url, headers=headers, data=req.data, timeout=LOCAL_DEV_TIMEOUT_SECONDS)
+    except requests.RequestException as e:
+        print(f"Failed to forward to local dev url {local_dev_url}: {e}")
+        return
     print(f"Forwarded to local dev url {local_dev_url} with status code: {response.status_code}")
 
 

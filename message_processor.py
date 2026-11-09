@@ -50,6 +50,12 @@ class MessageProcessor:
         except Exception as e:
             print(f"Failed to send reaction {emoji} to message {message_id}: {e}")
 
+    def mark_as_read(self, message_id: str):
+        try:
+            self.wa.mark_as_read(message_id)
+        except Exception as e:
+            print(f"Failed to mark message {message_id} as read: {e}")
+
     def process_webhook_post_request(self, data, mark_message_as_read: bool = True, debug: bool = False) -> dict:
         if not debug:
             print(f"Webhook request received:\n{json.dumps(data, indent=2)}")
@@ -57,6 +63,10 @@ class MessageProcessor:
         entry = data['entry'][0]
         changes = entry['changes']
         last_change = changes[0]['value']
+        phone_number_id = last_change.get('metadata', {}).get('phone_number_id')
+        if phone_number_id != MOBILE_ID:
+            print("Ignoring webhook not addressed to this bot's phone number")
+            return {'success': True}
         if 'messages' not in last_change:
             print("No messages found in last change")
             return {'success': True}
@@ -75,7 +85,7 @@ class MessageProcessor:
             return {'success': True}
         message_id = message['id']
         if mark_message_as_read:
-            wa.mark_as_read(message_id)
+            self.mark_as_read(message_id)
         transcription = None
         if message_type == 'audio':
             self.send_reaction(recipient_id, message_id, PROCESSING_REACTION)
@@ -142,6 +152,6 @@ class MessageProcessor:
             self.set_user_transcription(wa_id, answer_id, transcription)
             self.send_reaction(recipient_id, message_id, DONE_REACTION)
         if mark_message_as_read:
-            wa.mark_as_read(message_id)
+            self.mark_as_read(message_id)
 
         return {'success': True}

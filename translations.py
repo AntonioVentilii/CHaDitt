@@ -13,6 +13,9 @@ localized_messages = {
         "correct_header": "CORRECTION",
         "summarize_header": "SUMMARY",
         "translate_header": "TRANSLATION",
+        "translate_menu_prompt": "Which language should I translate it into?",
+        "translate_menu_button": "Choose language",
+        "translate_menu_section": "Languages",
         "choice_not_recognized": "Choice not recognized. Tap one of the buttons under the transcription.",
         "context_not_found": "It seems I forgot already about that message. Please send it again.",
         "action_failed": "Sorry, something went wrong. Please try again in a moment.",
@@ -31,6 +34,9 @@ localized_messages = {
         "correct_header": "CORREZIONE",
         "summarize_header": "RIASSUNTO",
         "translate_header": "TRADUZIONE",
+        "translate_menu_prompt": "In che lingua la traduco?",
+        "translate_menu_button": "Scegli la lingua",
+        "translate_menu_section": "Lingue",
         "choice_not_recognized": "Scelta non riconosciuta. Tocca uno dei bottoni sotto la trascrizione.",
         "context_not_found": "Sembra che abbia già dimenticato quel messaggio. Per favore invialo di nuovo.",
         "action_failed": "Mi dispiace, qualcosa è andato storto. Riprova tra poco.",
@@ -49,6 +55,9 @@ localized_messages = {
         "correct_header": "CORRECCIÓN",
         "summarize_header": "RESUMEN",
         "translate_header": "TRADUCCIÓN",
+        "translate_menu_prompt": "¿A qué idioma la traduzco?",
+        "translate_menu_button": "Elegir idioma",
+        "translate_menu_section": "Idiomas",
         "choice_not_recognized": "Opción no reconocida. Toca uno de los botones debajo de la transcripción.",
         "context_not_found": "Parece que ya olvidé ese mensaje. Por favor envíalo de nuevo.",
         "action_failed": "Lo siento, algo salió mal. Inténtalo de nuevo en un momento.",
@@ -67,6 +76,9 @@ localized_messages = {
         "correct_header": "CORREÇÃO",
         "summarize_header": "RESUMO",
         "translate_header": "TRADUÇÃO",
+        "translate_menu_prompt": "Para qual idioma eu traduzo?",
+        "translate_menu_button": "Escolher idioma",
+        "translate_menu_section": "Idiomas",
         "choice_not_recognized": "Escolha não reconhecida. Toque em um dos botões abaixo da transcrição.",
         "context_not_found": "Parece que já esqueci daquela mensagem. Por favor, envie-a novamente.",
         "action_failed": "Desculpe, algo deu errado. Tente de novo daqui a pouco.",
@@ -85,6 +97,9 @@ localized_messages = {
         "correct_header": "CORRECTION",
         "summarize_header": "RÉSUMÉ",
         "translate_header": "TRADUCTION",
+        "translate_menu_prompt": "Dans quelle langue je la traduis ?",
+        "translate_menu_button": "Choisir la langue",
+        "translate_menu_section": "Langues",
         "choice_not_recognized": "Choix non reconnu. Touchez l'un des boutons sous la transcription.",
         "context_not_found": "Il semble que j'ai déjà oublié ce message. Veuillez le renvoyer.",
         "action_failed": "Désolé, quelque chose s'est mal passé. Réessayez dans un instant.",
@@ -103,6 +118,9 @@ localized_messages = {
         "correct_header": "KORREKTUR",
         "summarize_header": "ZUSAMMENFASSUNG",
         "translate_header": "ÜBERSETZUNG",
+        "translate_menu_prompt": "In welche Sprache soll ich sie übersetzen?",
+        "translate_menu_button": "Sprache wählen",
+        "translate_menu_section": "Sprachen",
         "choice_not_recognized": "Auswahl nicht erkannt. Tippen Sie auf eine der Schaltflächen unter der "
                                  "Transkription.",
         "context_not_found": "Es scheint, als hätte ich diese Nachricht bereits vergessen. Bitte senden Sie sie "
@@ -114,6 +132,16 @@ localized_messages = {
 DEFAULT_LANGUAGE = 'it'
 
 AVAILABLE_LANGUAGES = list(localized_messages.keys())
+
+# How each language calls itself, as the translation menu lists it.
+LANGUAGE_LABELS = {
+    "it": "🇮🇹 Italiano",
+    "en": "🇬🇧 English",
+    "es": "🇪🇸 Español",
+    "pt": "🇵🇹 Português",
+    "fr": "🇫🇷 Français",
+    "de": "🇩🇪 Deutsch",
+}
 
 # A sender's language before they choose one, from the country calling code their WhatsApp id starts with: the
 # countries where one supported language is the main one. Codes shared by several supported languages

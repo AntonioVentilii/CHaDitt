@@ -68,6 +68,8 @@ The bot answers with the transcription and three buttons under it:
 
 Quoting a transcription and answering `1`, `2` or `3` still works too.
 
+The OpenAI models are set in `openai_wrapper/models.py`.
+
 ## License
 
 This project is not open source - see the [LICENSE.md](LICENSE.md) file for details.

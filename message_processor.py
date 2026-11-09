@@ -2,17 +2,33 @@ import time
 
 from whatsapp_wrapper import WhatsAppAPI
 from whatsapp_wrapper.audio_utilities import convert_audio_to_mp3
+from whatsapp_wrapper.message_object import MessageObject
 
 from configs import DEBUG_CHAT_IDS, GRAPH_API_TOKEN, MOBILE_ID
 from openai_wrapper.audio import speech_to_text
-from openai_wrapper.chat import correct_text, summarize_text
+from openai_wrapper.chat import correct_text, summarize_text, translate_text
 from openai_wrapper.language import get_intended_language_iso
-from translations import DEFAULT_LANGUAGE, check_supported_language, get_localized_message
+from translations import DEFAULT_LANGUAGE, LANGUAGE_NAMES, check_supported_language, get_localized_message
 
 PROCESSING_REACTION = '👂'
 DONE_REACTION = '✅'
 FAILED_REACTION = '❌'
+WORKING_REACTION = '⏳'
 META_ERROR_BODY_MAX_CHARS = 500
+DEBUG_PREFIX = '*DEBUG*: '
+
+# What the buttons under a transcription do. A button's id is "<action>:<transcription key>", and a language picked
+# from the translation menu is "tr:<iso code>:<transcription key>". The key is the id of a message the transcription
+# is stored under, so a tap still finds its text however old the message is.
+ACTION_CORRECT = 'fix'
+ACTION_SUMMARY = 'sum'
+ACTION_TRANSLATE = 'tr'
+# People used to answer a transcription with a number; that still works.
+NUMERIC_CHOICES = {1: ACTION_CORRECT, 2: ACTION_SUMMARY, 3: ACTION_TRANSLATE}
+# Limits Meta puts on interactive messages.
+INTERACTIVE_BODY_MAX_CHARS = 1024
+BUTTON_TITLE_MAX_CHARS = 20
+LIST_ROW_TITLE_MAX_CHARS = 24
 
 
 def masked(sender: str) -> str:
@@ -45,9 +61,53 @@ def to_bold(text: str) -> str:
     return '\n'.join([f'*{part}*' for part in text_parts])
 
 
-def to_italic(text: str) -> str:
-    text_parts = text.split('\n')
-    return '\n'.join([f'_{part}_' for part in text_parts])
+def action_buttons(loc, body: str, key: str) -> dict:
+    """Interactive message with one button per thing we can do with a transcription."""
+    buttons = [
+        (ACTION_CORRECT, loc('btn_correct')),
+        (ACTION_SUMMARY, loc('btn_summary')),
+        (ACTION_TRANSLATE, loc('btn_translate')),
+    ]
+    return {
+        'type': 'button',
+        'body': {'text': body},
+        'action': {
+            'buttons': [
+                {'type': 'reply', 'reply': {'id': f'{action}:{key}', 'title': title[:BUTTON_TITLE_MAX_CHARS]}}
+                for action, title in buttons
+            ],
+        },
+    }
+
+
+def language_menu(loc, key: str) -> dict:
+    """Interactive list to pick the language a transcription is translated into."""
+    return {
+        'type': 'list',
+        'body': {'text': loc('translate_prompt')},
+        'action': {
+            'button': loc('translate_button')[:BUTTON_TITLE_MAX_CHARS],
+            'sections': [{
+                'title': loc('translate_section')[:LIST_ROW_TITLE_MAX_CHARS],
+                'rows': [
+                    {'id': f'{ACTION_TRANSLATE}:{iso}:{key}', 'title': native[:LIST_ROW_TITLE_MAX_CHARS]}
+                    for iso, (native, _english) in LANGUAGE_NAMES.items()
+                ],
+            }],
+        },
+    }
+
+
+def parse_interactive_reply(message: dict) -> tuple[str, str, str | None] | None:
+    """(action, transcription key, target language) of a tapped button or picked list row, None if not ours."""
+    interactive = message.get('interactive', {})
+    reply = interactive.get(interactive.get('type'), {})
+    parts = reply.get('id', '').split(':')
+    if len(parts) == 2 and parts[0] in (ACTION_CORRECT, ACTION_SUMMARY, ACTION_TRANSLATE):
+        return parts[0], parts[1], None
+    if len(parts) == 3 and parts[0] == ACTION_TRANSLATE and parts[1] in LANGUAGE_NAMES:
+        return parts[0], parts[2], parts[1]
+    return None
 
 
 class MessageProcessor:
@@ -81,6 +141,68 @@ class MessageProcessor:
             self.wa.mark_as_read(message_id)
         except Exception as e:
             print(f"Failed to mark message {message_id} as read: {e}")
+
+    def send_interactive(self, recipient_id: str, interactive: dict, reply_to_message_id: str = None) -> dict:
+        payload = MessageObject(recipient_id, reply_to_message_id=reply_to_message_id).base_data
+        payload['type'] = 'interactive'
+        payload['interactive'] = interactive
+        return self.wa._send_message(payload, save_to_db=False)
+
+    def send_reply(self, recipient_id: str, message_id: str, parts: list, debug: bool = False) -> list[str]:
+        """Send each part (text, or an interactive dict) as a reply to the previous one; return the sent ids."""
+        sent_ids = []
+        reply_to = message_id
+        for i, part in enumerate(parts):
+            if isinstance(part, str):
+                text = f'{DEBUG_PREFIX}{part}' if debug and i == 0 else part
+                ret = self.wa.send_text(recipient_id, text, reply_to_message_id=reply_to)
+            else:
+                if debug and i == 0:
+                    part['body']['text'] = f"{DEBUG_PREFIX}{part['body']['text']}"
+                ret = self.send_interactive(recipient_id, part, reply_to_message_id=reply_to)
+            reply_to = ret['messages'][0]['id']
+            sent_ids.append(reply_to)
+        return sent_ids
+
+    def transcription_reply(self, loc, transcription: str, key: str) -> list:
+        """The transcription with the action buttons under it, in one message when Meta lets us."""
+        text = f"*{loc('header')}*:\n\n{transcription}"
+        if len(DEBUG_PREFIX) + len(text) <= INTERACTIVE_BODY_MAX_CHARS:
+            return [action_buttons(loc, text, key)]
+        return [text, action_buttons(loc, loc('actions_prompt'), key)]
+
+    def run_action(self, loc, action: str, text: str, key: str, target: str = None) -> list:
+        """What to answer when someone asks to correct, summarize or translate a transcription."""
+        if action == ACTION_CORRECT:
+            return [f"*{loc('correction_header')}*:\n\n{correct_text(text)}"]
+        if action == ACTION_SUMMARY:
+            return [f"*{loc('summary_header')}*:\n\n{summarize_text(text)}"]
+        if target is None:
+            return [language_menu(loc, key)]
+        native, english = LANGUAGE_NAMES[target]
+        return [f"*{loc('translation_header')}* ({native}):\n\n{translate_text(text, english)}"]
+
+    def answer_action(self, loc, recipient_id: str, message_id: str, wa_id: str, action: str, key: str,
+                      target: str = None) -> list:
+        text = self.get_user_transcription(wa_id, key)
+        if not text:
+            return [loc('context_not_found')]
+        calls_model = action != ACTION_TRANSLATE or target is not None
+        label = f'{action}:{target}' if target else action
+        if calls_model:
+            self.send_reaction(recipient_id, message_id, WORKING_REACTION)
+        started = time.monotonic()
+        try:
+            parts = self.run_action(loc, action, text, key, target)
+        except Exception as e:
+            print(f"[action] {masked(recipient_id)} {label} failed {time.monotonic() - started:.1f}s "
+                  f"{type(e).__name__}: {e}")
+            self.send_reaction(recipient_id, message_id, FAILED_REACTION)
+            return [loc('action_failed')]
+        if calls_model:
+            self.send_reaction(recipient_id, message_id, DONE_REACTION)
+            print(f"[action] {masked(recipient_id)} {label} ok {time.monotonic() - started:.1f}s")
+        return parts
 
     def process_webhook_post_request(self, data, mark_message_as_read: bool = True, debug: bool = False) -> dict:
         wa = self.wa
@@ -133,9 +255,17 @@ class MessageProcessor:
                 log_audio(recipient_id, message_id, 'empty transcription', started)
                 self.send_reaction(recipient_id, message_id, FAILED_REACTION)
                 return {'success': True}
-            header = loc('header')
-            footer = loc('footer')
-            response_msg = f'*{header}*:\n\n{transcription}\n\n{to_italic(footer)}'
+            # Stored under the voice note's id before sending, so the buttons can point at it.
+            self.set_user_transcription(wa_id, message_id, transcription)
+            parts = self.transcription_reply(loc, transcription, message_id)
+        elif message_type == 'interactive':
+            print(f"[interactive] {masked(recipient_id)} {short_id(message_id)} received")
+            parsed = parse_interactive_reply(message)
+            if parsed:
+                action, key, target = parsed
+                parts = self.answer_action(loc, recipient_id, message_id, wa_id, action, key, target)
+            else:
+                parts = [loc('context_not_found')]
         elif message_type == 'text':
             incoming_msg = message['text']['body']
             print(f"[text] {masked(recipient_id)} {short_id(message_id)} received")
@@ -145,46 +275,37 @@ class MessageProcessor:
                     choice = int(incoming_msg.lower().strip())
                 except ValueError:
                     choice = None
-                context_msg = self.get_user_transcription(wa_id, context_id)
-                if context_msg:
-                    if choice == 1:
-                        header = loc('correction_header')
-                        new_msg = correct_text(context_msg)
-                        response_msg = f'*{header}*:\n\n{new_msg}'
-                    elif choice == 2:
-                        header = loc('summary_header')
-                        new_msg = summarize_text(context_msg)
-                        response_msg = f'*{header}*:\n\n{new_msg}'
-                    elif choice == 3:
-                        response_msg = "Sorry, translation is not ready yet."
-                    else:
-                        response_msg = f"{loc('choice_not_recognized')} {[1, 2, 3]}"
+                if not self.get_user_transcription(wa_id, context_id):
+                    parts = [loc('context_not_found')]
+                elif choice in NUMERIC_CHOICES:
+                    parts = self.answer_action(loc, recipient_id, message_id, wa_id, NUMERIC_CHOICES[choice],
+                                               context_id)
                 else:
-                    response_msg = loc('context_not_found')
+                    parts = [action_buttons(loc, loc('actions_prompt'), context_id)]
             else:
                 iso_code = get_intended_language_iso(incoming_msg)
                 success, response_msg = check_supported_language(iso_code, language)
                 if success:
                     self.user_to_language[wa_id] = iso_code
+                parts = [response_msg]
         else:
             print(f"[{message_type}] {masked(recipient_id)} {short_id(message_id)} unsupported")
-            response_msg = loc('unsupported_content', message_type=message_type)
-
-        if debug:
-            response_msg = f"*DEBUG*: {response_msg}"
+            parts = [loc('unsupported_content', message_type=message_type)]
 
         try:
-            ret = wa.send_text(recipient_id, response_msg, reply_to_message_id=message_id)
+            sent_ids = self.send_reply(recipient_id, message_id, parts, debug=debug)
         except Exception as e:
             if message_type == 'audio':
                 log_audio(recipient_id, message_id, f'failed at {stage}', started, f'{type(e).__name__}: {e}')
                 self.send_reaction(recipient_id, message_id, FAILED_REACTION)
             raise
         if message_type == 'audio':
-            answer_id = ret['messages'][0]['id']
-            self.set_user_transcription(wa_id, answer_id, transcription)
+            # Quoting any of our messages with a number still finds the transcription.
+            for sent_id in sent_ids:
+                self.set_user_transcription(wa_id, sent_id, transcription)
             self.send_reaction(recipient_id, message_id, DONE_REACTION)
-            log_audio(recipient_id, message_id, 'ok', started, f'{len(transcription)} chars, reply {short_id(answer_id)}')
+            log_audio(recipient_id, message_id, 'ok', started,
+                      f'{len(transcription)} chars, reply {short_id(sent_ids[-1])}')
         if mark_message_as_read:
             self.mark_as_read(message_id)
 

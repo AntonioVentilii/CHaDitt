@@ -60,8 +60,13 @@ This will start the Flask development server, making the application accessible 
 ## Usage
 
 Once the application is running, you can send audio messages to your configured WhatsApp Business number.
-The application will automatically transcribe these audio messages and you can retrieve the transcriptions via the
-application's API or UI (as implemented).
+The bot answers with the transcription and three buttons under it:
+
+- **Correct** fixes the grammar of the transcription.
+- **Summarize** gives a short summary of it.
+- **Translate** opens a menu to pick the language to translate it into.
+
+Quoting a transcription and answering `1`, `2` or `3` still works too.
 
 ## License
 

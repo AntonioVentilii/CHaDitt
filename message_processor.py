@@ -16,11 +16,15 @@ FAILED_REACTION = '❌'
 META_ERROR_BODY_MAX_CHARS = 500
 # WhatsApp allows at most 1024 characters in the body of a message with reply buttons.
 BUTTONS_BODY_MAX_CHARS = 1024
+# And at most 4096 in a text message: a longer one goes out in several.
+TEXT_BODY_MAX_CHARS = 4096
 FALLBACK_TRANSLATION_LANGUAGE = 'en'
 
-# What a transcription can be turned into, in the order of its buttons. The button id is the action, its title
-# is the '<action>_button' message and the answer starts with the '<action>_header' message.
-# A typed reply of 1, 2 or 3 to a transcription picks the same action.
+# What a transcription can be turned into, in the order of its buttons. The button id is '<action>:<media id>',
+# with the WhatsApp id of the voice note, its title is the '<action>_button' message and the answer starts with the
+# '<action>_header' message. A typed reply of 1, 2 or 3 to a transcription picks the same action.
+# Transcriptions live in memory only: when a restart wiped the one a button points to, the voice note is downloaded
+# from WhatsApp again and transcribed again, for as long as Meta keeps it.
 ACTIONS = ('correct', 'summarize', 'translate')
 
 
@@ -51,6 +55,28 @@ def log_statuses(statuses: list):
 
 def describe(e: Exception) -> str:
     return f'{type(e).__name__}: {e}'
+
+
+def split_text(text: str, limit: int = TEXT_BODY_MAX_CHARS) -> list[str]:
+    """Cuts a text WhatsApp would refuse as too long into pieces, at a line break or a space when there is one."""
+    pieces = []
+    while len(text) > limit:
+        # Only a break in the second half of the piece, so the pieces stay about as long as WhatsApp allows.
+        cut = text.rfind('\n', limit // 2, limit + 1)
+        if cut == -1:
+            cut = text.rfind(' ', limit // 2, limit + 1)
+        if cut == -1:
+            cut = limit
+        pieces.append(text[:cut].rstrip())
+        text = text[cut:].lstrip()
+    pieces.append(text)
+    return pieces
+
+
+def parse_button_id(button_id: str) -> tuple[str, str]:
+    """(action, media id) of a tapped button; the media id is '' on buttons sent before it was added."""
+    action, _, media_id = button_id.partition(':')
+    return action, media_id
 
 
 def translation_languages(language: str) -> tuple[str, str]:
@@ -110,12 +136,17 @@ class MessageProcessor:
         except Exception as e:
             print(f"Failed to mark message {message_id} as read: {e}")
 
-    def send_text(self, to: str, text: str, reply_to: str) -> str:
-        # Not saved to the wrapper's database: without one it would warn with the whole message in the logs.
-        ret = self.wa.send_text(to, text, reply_to_message_id=reply_to, save_to_db=False)
-        return ret['messages'][0]['id']
+    def send_text(self, to: str, text: str, reply_to: str) -> list[str]:
+        """Sends text, in several messages each replying to the previous one if it is too long; returns their ids."""
+        ids = []
+        for piece in split_text(text):
+            # Not saved to the wrapper's database: without one it would warn with the whole message in the logs.
+            ret = self.wa.send_text(to, piece, reply_to_message_id=reply_to, save_to_db=False)
+            reply_to = ret['messages'][0]['id']
+            ids.append(reply_to)
+        return ids
 
-    def send_buttons(self, to: str, body: str, reply_to: str, language: str) -> str:
+    def send_buttons(self, to: str, body: str, reply_to: str, language: str, media_id: str) -> str:
         """Sends body with one reply button per action and returns the id of the message."""
         data = MessageObject(to, reply_to_message_id=reply_to).base_data
         data['type'] = 'interactive'
@@ -123,23 +154,26 @@ class MessageProcessor:
             'type': 'button',
             'body': {'text': body},
             'action': {'buttons': [
-                {'type': 'reply', 'reply': {'id': action, 'title': get_localized_message(language, f'{action}_button')}}
+                {'type': 'reply', 'reply': {'id': f'{action}:{media_id}',
+                                            'title': get_localized_message(language, f'{action}_button')}}
                 for action in ACTIONS
             ]},
         }
         ret = self.wa._send_message(data, save_to_db=False)
         return ret['messages'][0]['id']
 
-    def send_transcription(self, to: str, transcription: str, reply_to: str, language: str) -> list[str]:
+    def send_transcription(self, to: str, transcription: str, reply_to: str, language: str,
+                           media_id: str) -> list[str]:
         """Sends the transcription with the action buttons and returns the ids a reply can point to, the message
         that shows the transcription first."""
         header = get_localized_message(language, 'header')
         text = f'*{header}*\n\n{transcription}'
         if len(text) <= BUTTONS_BODY_MAX_CHARS:
-            return [self.send_buttons(to, text, reply_to, language)]
-        text_id = self.send_text(to, text, reply_to)
-        buttons_id = self.send_buttons(to, get_localized_message(language, 'actions_prompt'), text_id, language)
-        return [text_id, buttons_id]
+            return [self.send_buttons(to, text, reply_to, language, media_id)]
+        text_ids = self.send_text(to, text, reply_to)
+        buttons_id = self.send_buttons(to, get_localized_message(language, 'actions_prompt'), text_ids[-1], language,
+                                       media_id)
+        return text_ids + [buttons_id]
 
     def process_webhook_post_request(self, data, mark_message_as_read: bool = True, debug: bool = False) -> dict:
         wa = self.wa
@@ -170,8 +204,8 @@ class MessageProcessor:
         if message_type == 'audio':
             self.process_audio(message, wa_id, debug)
         elif message_type == 'interactive' and message['interactive'].get('type') == 'button_reply':
-            action = message['interactive']['button_reply']['id']
-            self.process_action(message, wa_id, action, debug)
+            action, media_id = parse_button_id(message['interactive']['button_reply']['id'])
+            self.process_action(message, wa_id, action, debug, media_id)
         elif message_type == 'text':
             self.process_text(message, wa_id, debug)
         else:
@@ -190,23 +224,21 @@ class MessageProcessor:
         message_id = message['id']
         language = self.get_user_language(wa_id)
         started = time.monotonic()
-        stage = 'download'
         log_outcome('audio', recipient_id, message_id, 'received', started)
         self.send_reaction(recipient_id, message_id, PROCESSING_REACTION)
+        media_id = message['audio']['id']
+        progress = []
         try:
-            media_file = self.wa.get_media(message['audio']['id'])
-            stage = 'convert'
-            media_file_mp3 = convert_audio_to_mp3(media_file)
-            stage = 'transcribe'
-            transcription = speech_to_text(media_file_mp3).strip()
+            transcription = self.transcribe(media_id, progress)
             if not transcription:
                 log_outcome('audio', recipient_id, message_id, 'empty transcription', started)
                 self.send_reaction(recipient_id, message_id, FAILED_REACTION)
                 return
-            stage = 'reply'
+            progress.append('reply')
             answer_ids = self.send_transcription(recipient_id, self.debug_prefix(transcription, debug), message_id,
-                                                 language)
+                                                 language, media_id)
         except Exception as e:
+            stage = progress[-1] if progress else 'download'
             log_outcome('audio', recipient_id, message_id, f'failed at {stage}', started, describe(e))
             self.send_reaction(recipient_id, message_id, FAILED_REACTION)
             raise
@@ -216,7 +248,34 @@ class MessageProcessor:
         log_outcome('audio', recipient_id, message_id, 'ok', started,
                     f'{len(transcription)} chars, reply {short_id(answer_ids[-1])}')
 
-    def process_action(self, message: dict, wa_id: str, action: str, debug: bool):
+    def transcribe(self, media_id: str, progress: list = None) -> str:
+        """Downloads a voice note from WhatsApp and transcribes it; `progress` gets the stage being worked on."""
+        progress = [] if progress is None else progress
+        progress.append('download')
+        media_file = self.wa.get_media(media_id)
+        progress.append('convert')
+        media_file_mp3 = convert_audio_to_mp3(media_file)
+        progress.append('transcribe')
+        return speech_to_text(media_file_mp3).strip()
+
+    def transcribe_again(self, message: dict, wa_id: str, media_id: str, context_id: str) -> str:
+        """The transcription of a voice note whose transcription a restart wiped from memory, '' if WhatsApp
+        no longer has the voice note."""
+        recipient_id = message['from']
+        message_id = message['id']
+        started = time.monotonic()
+        try:
+            transcription = self.transcribe(media_id)
+        except Exception as e:
+            log_outcome('retranscribe', recipient_id, message_id, 'failed', started, describe(e))
+            return ''
+        log_outcome('retranscribe', recipient_id, message_id, 'ok', started, f'{len(transcription)} chars')
+        if transcription:
+            # Answers reply to the buttons, the message that showed the transcription isn't known anymore.
+            self.set_user_transcription(wa_id, context_id, transcription, context_id)
+        return transcription
+
+    def process_action(self, message: dict, wa_id: str, action: str, debug: bool, media_id: str = ''):
         """Runs a button's action on the transcription the button belongs to and replies to that transcription."""
         recipient_id = message['from']
         message_id = message['id']
@@ -224,6 +283,9 @@ class MessageProcessor:
         started = time.monotonic()
         context_id = message.get('context', {}).get('id')
         transcription, transcription_message_id = self.get_user_transcription(wa_id, context_id)
+        if not transcription and media_id and context_id:
+            transcription = self.transcribe_again(message, wa_id, media_id, context_id)
+            transcription_message_id = context_id
         if not transcription:
             log_outcome(action, recipient_id, message_id, 'context not found', started)
             reply = get_localized_message(language, 'context_not_found')

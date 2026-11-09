@@ -27,6 +27,7 @@ ACTION_TRANSLATE = 'tr'
 NUMERIC_CHOICES = {1: ACTION_CORRECT, 2: ACTION_SUMMARY, 3: ACTION_TRANSLATE}
 # Limits Meta puts on interactive messages.
 INTERACTIVE_BODY_MAX_CHARS = 1024
+TEXT_BODY_MAX_CHARS = 4096
 BUTTON_TITLE_MAX_CHARS = 20
 LIST_ROW_TITLE_MAX_CHARS = 24
 
@@ -59,6 +60,22 @@ def log_statuses(statuses: list):
 def to_bold(text: str) -> str:
     text_parts = text.split('\n')
     return '\n'.join([f'*{part}*' for part in text_parts])
+
+
+def split_text(text: str, limit: int = TEXT_BODY_MAX_CHARS) -> list[str]:
+    """Cut a text Meta would refuse as too long into pieces, at a line break or a space when there is one."""
+    pieces = []
+    while len(text) > limit:
+        # Only a break in the second half of the piece, so the pieces stay about as long as Meta allows.
+        cut = text.rfind('\n', limit // 2, limit + 1)
+        if cut == -1:
+            cut = text.rfind(' ', limit // 2, limit + 1)
+        if cut == -1:
+            cut = limit
+        pieces.append(text[:cut].rstrip())
+        text = text[cut:].lstrip()
+    pieces.append(text)
+    return pieces
 
 
 def action_buttons(loc, body: str, key: str) -> dict:
@@ -149,25 +166,32 @@ class MessageProcessor:
         return self.wa._send_message(payload, save_to_db=False)
 
     def send_reply(self, recipient_id: str, message_id: str, parts: list, debug: bool = False) -> list[str]:
-        """Send each part (text, or an interactive dict) as a reply to the previous one; return the sent ids."""
+        """Send each part (text, or an interactive dict) as a reply to the previous one; return the sent ids.
+
+        A text longer than Meta allows goes out in several messages.
+        """
+        if debug and parts:
+            if isinstance(parts[0], str):
+                parts[0] = f'{DEBUG_PREFIX}{parts[0]}'
+            else:
+                parts[0]['body']['text'] = f"{DEBUG_PREFIX}{parts[0]['body']['text']}"
         sent_ids = []
         reply_to = message_id
-        for i, part in enumerate(parts):
-            if isinstance(part, str):
-                text = f'{DEBUG_PREFIX}{part}' if debug and i == 0 else part
-                ret = self.wa.send_text(recipient_id, text, reply_to_message_id=reply_to)
-            else:
-                if debug and i == 0:
-                    part['body']['text'] = f"{DEBUG_PREFIX}{part['body']['text']}"
-                ret = self.send_interactive(recipient_id, part, reply_to_message_id=reply_to)
-            reply_to = ret['messages'][0]['id']
-            sent_ids.append(reply_to)
+        for part in parts:
+            for piece in split_text(part) if isinstance(part, str) else [part]:
+                if isinstance(piece, str):
+                    ret = self.wa.send_text(recipient_id, piece, reply_to_message_id=reply_to)
+                else:
+                    ret = self.send_interactive(recipient_id, piece, reply_to_message_id=reply_to)
+                reply_to = ret['messages'][0]['id']
+                sent_ids.append(reply_to)
         return sent_ids
 
-    def transcription_reply(self, loc, transcription: str, key: str) -> list:
+    def transcription_reply(self, loc, transcription: str, key: str, debug: bool = False) -> list:
         """The transcription with the action buttons under it, in one message when Meta lets us."""
         text = f"*{loc('header')}*:\n\n{transcription}"
-        if len(DEBUG_PREFIX) + len(text) <= INTERACTIVE_BODY_MAX_CHARS:
+        prefix_chars = len(DEBUG_PREFIX) if debug else 0
+        if prefix_chars + len(text) <= INTERACTIVE_BODY_MAX_CHARS:
             return [action_buttons(loc, text, key)]
         return [text, action_buttons(loc, loc('actions_prompt'), key)]
 
@@ -257,7 +281,7 @@ class MessageProcessor:
                 return {'success': True}
             # Stored under the voice note's id before sending, so the buttons can point at it.
             self.set_user_transcription(wa_id, message_id, transcription)
-            parts = self.transcription_reply(loc, transcription, message_id)
+            parts = self.transcription_reply(loc, transcription, message_id, debug=debug)
         elif message_type == 'interactive':
             print(f"[interactive] {masked(recipient_id)} {short_id(message_id)} received")
             parsed = parse_interactive_reply(message)

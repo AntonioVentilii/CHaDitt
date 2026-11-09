@@ -1,4 +1,4 @@
-import json
+import time
 
 from whatsapp_wrapper import WhatsAppAPI
 from whatsapp_wrapper.audio_utilities import convert_audio_to_mp3
@@ -12,6 +12,32 @@ from translations import DEFAULT_LANGUAGE, check_supported_language, get_localiz
 PROCESSING_REACTION = '👂'
 DONE_REACTION = '✅'
 FAILED_REACTION = '❌'
+META_ERROR_BODY_MAX_CHARS = 500
+
+
+def masked(sender: str) -> str:
+    """Last digits of a WhatsApp id, enough to tell senders apart in the logs."""
+    return f'…{sender[-4:]}' if sender else '?'
+
+
+def short_id(message_id: str) -> str:
+    return f'…{message_id[-8:]}' if message_id else '?'
+
+
+def raise_with_meta_error(_wa, response, _data):
+    """Error handler for WhatsAppAPI that keeps Meta's answer instead of only the status code."""
+    raise Exception(f"Meta answered {response.status_code}: {response.text[:META_ERROR_BODY_MAX_CHARS]}")
+
+
+def log_audio(sender: str, message_id: str, outcome: str, started: float, detail: str = ''):
+    elapsed = time.monotonic() - started
+    print(f"[audio] {masked(sender)} {short_id(message_id)} {outcome} {elapsed:.1f}s {detail}".rstrip())
+
+
+def log_statuses(statuses: list):
+    for status in statuses:
+        errors = '; '.join(f"{e.get('code')} {e.get('title')}" for e in status.get('errors', []))
+        print(f"[status] {status.get('status')} {short_id(status.get('id'))} {errors}".rstrip())
 
 
 def to_bold(text: str) -> str:
@@ -26,7 +52,7 @@ def to_italic(text: str) -> str:
 
 class MessageProcessor:
     def __init__(self):
-        self.wa = WhatsAppAPI(mobile_id=MOBILE_ID, api_token=GRAPH_API_TOKEN)
+        self.wa = WhatsAppAPI(mobile_id=MOBILE_ID, api_token=GRAPH_API_TOKEN, error_handler=raise_with_meta_error)
         self.user_to_language = {}
         self.user_to_transcriptions = {}
 
@@ -57,8 +83,6 @@ class MessageProcessor:
             print(f"Failed to mark message {message_id} as read: {e}")
 
     def process_webhook_post_request(self, data, mark_message_as_read: bool = True, debug: bool = False) -> dict:
-        if not debug:
-            print(f"Webhook request received:\n{json.dumps(data, indent=2)}")
         wa = self.wa
         entry = data['entry'][0]
         changes = entry['changes']
@@ -68,7 +92,7 @@ class MessageProcessor:
             print("Ignoring webhook not addressed to this bot's phone number")
             return {'success': True}
         if 'messages' not in last_change:
-            print("No messages found in last change")
+            log_statuses(last_change.get('statuses', []))
             return {'success': True}
         message = last_change['messages'][0]
         wa_id = last_change['contacts'][0]['wa_id']
@@ -77,29 +101,36 @@ class MessageProcessor:
         message_type = message['type']
         recipient_id = message['from']
         if debug and recipient_id not in DEBUG_CHAT_IDS:
-            print(f"User {recipient_id} is not in debug chat ids. Ignoring message.")
+            print(f"User {masked(recipient_id)} is not in debug chat ids. Ignoring message.")
             return {'success': True}
         banned_users = wa.banned_users
         if recipient_id in banned_users:
-            print(f"User {recipient_id} is banned. Ignoring message.")
+            print(f"User {masked(recipient_id)} is banned. Ignoring message.")
             return {'success': True}
         message_id = message['id']
         if mark_message_as_read:
             self.mark_as_read(message_id)
         transcription = None
+        started = time.monotonic()
+        stage = 'reply'
         if message_type == 'audio':
+            log_audio(recipient_id, message_id, 'received', started)
             self.send_reaction(recipient_id, message_id, PROCESSING_REACTION)
             media_id = message['audio']['id']
-            print(f"Audio message received from {recipient_id}: {media_id}")
             try:
+                stage = 'download'
                 media_file = wa.get_media(media_id)
+                stage = 'convert'
                 media_file_mp3 = convert_audio_to_mp3(media_file)
+                stage = 'transcribe'
                 transcription = speech_to_text(media_file_mp3).strip()
-            except Exception:
+            except Exception as e:
+                log_audio(recipient_id, message_id, f'failed at {stage}', started, f'{type(e).__name__}: {e}')
                 self.send_reaction(recipient_id, message_id, FAILED_REACTION)
                 raise
+            stage = 'reply'
             if not transcription:
-                print(f"Empty transcription for audio message {message_id} from {recipient_id}")
+                log_audio(recipient_id, message_id, 'empty transcription', started)
                 self.send_reaction(recipient_id, message_id, FAILED_REACTION)
                 return {'success': True}
             header = loc('header')
@@ -107,7 +138,7 @@ class MessageProcessor:
             response_msg = f'*{header}*:\n\n{transcription}\n\n{to_italic(footer)}'
         elif message_type == 'text':
             incoming_msg = message['text']['body']
-            print(f"Message received from {recipient_id}: {incoming_msg}")
+            print(f"[text] {masked(recipient_id)} {short_id(message_id)} received")
             context_id = message.get('context', {}).get('id')
             if context_id:
                 try:
@@ -136,6 +167,7 @@ class MessageProcessor:
                 if success:
                     self.user_to_language[wa_id] = iso_code
         else:
+            print(f"[{message_type}] {masked(recipient_id)} {short_id(message_id)} unsupported")
             response_msg = loc('unsupported_content', message_type=message_type)
 
         if debug:
@@ -143,14 +175,16 @@ class MessageProcessor:
 
         try:
             ret = wa.send_text(recipient_id, response_msg, reply_to_message_id=message_id)
-        except Exception:
+        except Exception as e:
             if message_type == 'audio':
+                log_audio(recipient_id, message_id, f'failed at {stage}', started, f'{type(e).__name__}: {e}')
                 self.send_reaction(recipient_id, message_id, FAILED_REACTION)
             raise
         if message_type == 'audio':
             answer_id = ret['messages'][0]['id']
             self.set_user_transcription(wa_id, answer_id, transcription)
             self.send_reaction(recipient_id, message_id, DONE_REACTION)
+            log_audio(recipient_id, message_id, 'ok', started, f'{len(transcription)} chars, reply {short_id(answer_id)}')
         if mark_message_as_read:
             self.mark_as_read(message_id)
 

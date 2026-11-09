@@ -8,7 +8,7 @@ anyio==4.15.1
     #   openai
 blinker==1.9.0
     # via flask
-certifi==2026.10.18
+certifi==2026.10.23
     # via requests
 cffi==2.1.1
     # via cryptography
@@ -91,7 +91,7 @@ protobuf==7.36.2
     #   googleapis-common-protos
     #   grpcio-status
     #   proto-plus
-pyasn1==0.6.4
+pyasn1==0.6.5
     # via pyasn1-modules
 pyasn1-modules==0.4.2
     # via google-auth

@@ -1,46 +1,37 @@
-import json
-
 from openai import OpenAI
+
+from openai_wrapper.models import CHAT_MODEL, CHAT_REASONING_EFFORT
 
 client = OpenAI()
 
 
-def simple_query(prompt: str, text: str) -> str:
-    query_prompt = {
-        "role": "system",
-        "content": prompt
-    }
-    user_message = {
-        "role": "user",
-        "content": text
-    }
-    messages = [query_prompt, user_message]
-
+def simple_query(prompt: str, text: str, max_completion_tokens: int = None) -> str:
+    messages = [
+        {"role": "system", "content": prompt},
+        {"role": "user", "content": text},
+    ]
+    extra = {'max_completion_tokens': max_completion_tokens} if max_completion_tokens else {}
     response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model=CHAT_MODEL,
         messages=messages,
-        temperature=0.7,
+        reasoning_effort=CHAT_REASONING_EFFORT,
+        **extra,
     )
-    ret = json.loads(response.json())
-    answer = ret['choices'][0]['message']['content']
-
-    return answer
+    return response.choices[0].message.content.strip()
 
 
 def correct_text(text: str) -> str:
-    prompt = "Correct the grammar and clarify the meaning of the following text."
-    ret = simple_query(prompt, text)
-    return ret
+    prompt = "Correct the grammar and clarify the meaning of the following text, keeping its language. " \
+             "Reply with the corrected text only."
+    return simple_query(prompt, text)
 
 
 def summarize_text(text: str) -> str:
-    prompt = "Provide a concise summary of the following text, without losing its meaning and without decorative " \
-             "sentences like 'In this essay, I will...' or 'This text is about...'."
-    ret = simple_query(prompt, text)
-    return ret
+    prompt = "Provide a concise summary of the following text, in the same language as the text, without losing " \
+             "its meaning and without decorative sentences like 'In this essay, I will...' or 'This text is about...'."
+    return simple_query(prompt, text)
 
 
 def translate_text(text: str, target_language: str) -> str:
     prompt = f"Translate the following text to {target_language}."
-    ret = simple_query(prompt, text)
-    return ret
+    return simple_query(prompt, text)

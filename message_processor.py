@@ -80,6 +80,8 @@ def action_from_typed_choice(text: str) -> str | None:
 class MessageProcessor:
     def __init__(self):
         self.wa = WhatsAppAPI(mobile_id=MOBILE_ID, api_token=GRAPH_API_TOKEN, error_handler=raise_with_meta_error)
+        # Kept in this process's memory: the Procfile runs a single gunicorn worker (with threads) so that a button
+        # tap reaches the process that sent the transcription. A restart or a deploy still forgets them.
         self.user_to_language = {}
         self.user_to_transcriptions = {}
 

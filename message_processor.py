@@ -64,8 +64,8 @@ class MessageProcessor:
         changes = entry['changes']
         last_change = changes[0]['value']
         phone_number_id = last_change.get('metadata', {}).get('phone_number_id')
-        if phone_number_id and phone_number_id != MOBILE_ID:
-            print("Ignoring webhook addressed to another phone number of the business")
+        if phone_number_id != MOBILE_ID:
+            print("Ignoring webhook not addressed to this bot's phone number")
             return {'success': True}
         if 'messages' not in last_change:
             print("No messages found in last change")

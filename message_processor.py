@@ -17,9 +17,10 @@ WORKING_REACTION = '⏳'
 META_ERROR_BODY_MAX_CHARS = 500
 DEBUG_PREFIX = '*DEBUG*: '
 
-# What the buttons under a transcription do. A button's id is "<action>:<transcription key>", and a language picked
-# from the translation menu is "tr:<iso code>:<transcription key>". The key is the id of a message the transcription
-# is stored under, so a tap still finds its text however old the message is.
+# What the buttons under a transcription do. A button's id is "<action>:<media id>", and a language picked from the
+# translation menu is "tr:<iso code>:<media id>", where the media id is WhatsApp's id of the voice note. Transcriptions
+# live in memory only, so after a restart a tap finds nothing there: the voice note is then downloaded again from
+# WhatsApp and transcribed again, for as long as Meta keeps it.
 ACTION_CORRECT = 'fix'
 ACTION_SUMMARY = 'sum'
 ACTION_TRANSLATE = 'tr'
@@ -132,6 +133,7 @@ class MessageProcessor:
         self.wa = WhatsAppAPI(mobile_id=MOBILE_ID, api_token=GRAPH_API_TOKEN, error_handler=raise_with_meta_error)
         self.user_to_language = {}
         self.user_to_transcriptions = {}
+        self.user_to_media = {}
 
     def set_user_language(self, user_id: str, language: str):
         self.user_to_language[user_id] = language
@@ -146,6 +148,40 @@ class MessageProcessor:
 
     def get_user_transcription(self, user_id: str, message_id: str) -> str:
         return self.user_to_transcriptions.get(user_id, {}).get(message_id, '')
+
+    def set_message_media(self, user_id: str, message_id: str, media_id: str):
+        self.user_to_media.setdefault(user_id, {})[message_id] = media_id
+
+    def get_message_media(self, user_id: str, message_id: str) -> str:
+        """Media id of the voice note one of our messages transcribed, '' if we don't remember it."""
+        return self.user_to_media.get(user_id, {}).get(message_id, '')
+
+    def transcribe_media(self, media_id: str, progress: list = None) -> str:
+        """Download a voice note from WhatsApp and transcribe it; `progress` gets the stage being worked on."""
+        progress = [] if progress is None else progress
+        progress.append('download')
+        media_file = self.wa.get_media(media_id)
+        progress.append('convert')
+        media_file_mp3 = convert_audio_to_mp3(media_file)
+        progress.append('transcribe')
+        return speech_to_text(media_file_mp3).strip()
+
+    def find_transcription(self, recipient_id: str, wa_id: str, key: str) -> str:
+        """The transcription a button points at, transcribed again when a restart wiped it from memory."""
+        text = self.get_user_transcription(wa_id, key)
+        if text or not key.isdigit():
+            return text
+        started = time.monotonic()
+        try:
+            text = self.transcribe_media(key)
+        except Exception as e:
+            print(f"[retranscribe] {masked(recipient_id)} failed {time.monotonic() - started:.1f}s "
+                  f"{type(e).__name__}: {e}")
+            return ''
+        print(f"[retranscribe] {masked(recipient_id)} ok {time.monotonic() - started:.1f}s {len(text)} chars")
+        if text:
+            self.set_user_transcription(wa_id, key, text)
+        return text
 
     def send_reaction(self, recipient_id: str, message_id: str, emoji: str):
         try:
@@ -208,13 +244,15 @@ class MessageProcessor:
 
     def answer_action(self, loc, recipient_id: str, message_id: str, wa_id: str, action: str, key: str,
                       target: str = None) -> list:
-        text = self.get_user_transcription(wa_id, key)
-        if not text:
-            return [loc('context_not_found')]
         calls_model = action != ACTION_TRANSLATE or target is not None
         label = f'{action}:{target}' if target else action
-        if calls_model:
+        remembered = bool(self.get_user_transcription(wa_id, key))
+        if calls_model or not remembered:
             self.send_reaction(recipient_id, message_id, WORKING_REACTION)
+        text = self.find_transcription(recipient_id, wa_id, key)
+        if not text:
+            self.send_reaction(recipient_id, message_id, FAILED_REACTION)
+            return [loc('context_not_found')]
         started = time.monotonic()
         try:
             parts = self.run_action(loc, action, text, key, target)
@@ -223,8 +261,9 @@ class MessageProcessor:
                   f"{type(e).__name__}: {e}")
             self.send_reaction(recipient_id, message_id, FAILED_REACTION)
             return [loc('action_failed')]
-        if calls_model:
+        if calls_model or not remembered:
             self.send_reaction(recipient_id, message_id, DONE_REACTION)
+        if calls_model:
             print(f"[action] {masked(recipient_id)} {label} ok {time.monotonic() - started:.1f}s")
         return parts
 
@@ -263,14 +302,11 @@ class MessageProcessor:
             log_audio(recipient_id, message_id, 'received', started)
             self.send_reaction(recipient_id, message_id, PROCESSING_REACTION)
             media_id = message['audio']['id']
+            progress = []
             try:
-                stage = 'download'
-                media_file = wa.get_media(media_id)
-                stage = 'convert'
-                media_file_mp3 = convert_audio_to_mp3(media_file)
-                stage = 'transcribe'
-                transcription = speech_to_text(media_file_mp3).strip()
+                transcription = self.transcribe_media(media_id, progress)
             except Exception as e:
+                stage = progress[-1] if progress else 'download'
                 log_audio(recipient_id, message_id, f'failed at {stage}', started, f'{type(e).__name__}: {e}')
                 self.send_reaction(recipient_id, message_id, FAILED_REACTION)
                 raise
@@ -279,9 +315,9 @@ class MessageProcessor:
                 log_audio(recipient_id, message_id, 'empty transcription', started)
                 self.send_reaction(recipient_id, message_id, FAILED_REACTION)
                 return {'success': True}
-            # Stored under the voice note's id before sending, so the buttons can point at it.
-            self.set_user_transcription(wa_id, message_id, transcription)
-            parts = self.transcription_reply(loc, transcription, message_id, debug=debug)
+            # Stored under the voice note's media id before sending, so the buttons can point at it.
+            self.set_user_transcription(wa_id, media_id, transcription)
+            parts = self.transcription_reply(loc, transcription, media_id, debug=debug)
         elif message_type == 'interactive':
             print(f"[interactive] {masked(recipient_id)} {short_id(message_id)} received")
             parsed = parse_interactive_reply(message)
@@ -299,13 +335,13 @@ class MessageProcessor:
                     choice = int(incoming_msg.lower().strip())
                 except ValueError:
                     choice = None
-                if not self.get_user_transcription(wa_id, context_id):
+                key = self.get_message_media(wa_id, context_id)
+                if not key:
                     parts = [loc('context_not_found')]
                 elif choice in NUMERIC_CHOICES:
-                    parts = self.answer_action(loc, recipient_id, message_id, wa_id, NUMERIC_CHOICES[choice],
-                                               context_id)
+                    parts = self.answer_action(loc, recipient_id, message_id, wa_id, NUMERIC_CHOICES[choice], key)
                 else:
-                    parts = [action_buttons(loc, loc('actions_prompt'), context_id)]
+                    parts = [action_buttons(loc, loc('actions_prompt'), key)]
             else:
                 iso_code = get_intended_language_iso(incoming_msg)
                 success, response_msg = check_supported_language(iso_code, language)
@@ -326,7 +362,7 @@ class MessageProcessor:
         if message_type == 'audio':
             # Quoting any of our messages with a number still finds the transcription.
             for sent_id in sent_ids:
-                self.set_user_transcription(wa_id, sent_id, transcription)
+                self.set_message_media(wa_id, sent_id, media_id)
             self.send_reaction(recipient_id, message_id, DONE_REACTION)
             log_audio(recipient_id, message_id, 'ok', started,
                       f'{len(transcription)} chars, reply {short_id(sent_ids[-1])}')

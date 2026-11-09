@@ -68,6 +68,9 @@ The bot answers with the transcription and three buttons under it:
 
 Quoting a transcription and answering `1`, `2` or `3` still works too.
 
+Transcriptions are kept in memory only. When a button is tapped after a restart, the bot downloads the voice note
+from WhatsApp again and transcribes it again, as long as Meta still keeps it.
+
 The OpenAI models are set in `openai_wrapper/models.py`.
 
 ## License

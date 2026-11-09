@@ -60,17 +60,8 @@ This will start the Flask development server, making the application accessible 
 ## Usage
 
 Once the application is running, you can send audio messages to your configured WhatsApp Business number.
-The bot answers with the transcription and three buttons under it:
-
-- **Correct** fixes the grammar of the transcription.
-- **Summarize** gives a short summary of it.
-- **Translate** opens a menu to pick the language to translate it into.
-
-Quoting a transcription and answering `1`, `2` or `3` still works too.
-
-Transcriptions are kept in memory only. When a button is tapped after a restart, the bot downloads the voice note
-from WhatsApp again and transcribes it again, as long as Meta still keeps it.
-
+The bot answers with the transcription and three buttons: correct, summarize and translate (into the sender's
+language). The sender's language comes from their country calling code until they write which one they want.
 The OpenAI models are set in `openai_wrapper/models.py`.
 
 ## License

@@ -32,8 +32,7 @@ def summarize_text(text: str) -> str:
     return simple_query(prompt, text)
 
 
-def translate_text(text: str, target_language: str) -> str:
-    prompt = f"Translate the following text into {target_language}. " \
-             "Answer with the translation only, without notes or comments. " \
-             f"If the text is already in {target_language}, return it unchanged."
+def translate_text(text: str, target_language: str, fallback_language: str) -> str:
+    prompt = f"Translate the following text into {target_language}. If it is already in {target_language}, " \
+             f"translate it into {fallback_language} instead. Reply with the translation only."
     return simple_query(prompt, text)

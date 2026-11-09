@@ -10,7 +10,6 @@ def speech_to_text(audio_file_path: str) -> str:
         transcript = client.audio.transcriptions.create(
             model=TRANSCRIPTION_MODEL,
             file=audio_file,
-            response_format='text',
             prompt=speech_to_text_instructions,
         )
-    return str(transcript)
+    return transcript.text

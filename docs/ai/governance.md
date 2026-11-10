@@ -22,7 +22,8 @@ Read freely; change only when the task asks for it.
 | `Procfile`                             | One worker on purpose: the in-memory state needs it (`AGENTS.md`). A change is a deploy change. |
 | `app.json`, `.python-version`          | Heroku stack, buildpacks (ffmpeg) and the Python version: a change rebuilds production.  |
 | `requirements.in`, `requirements.txt`  | New dependencies need Antonio's approval. `requirements.txt` is **generated** by `uv pip compile` (command at its top); never edit it by hand. |
-| `.github/workflows/**`                 | The smoke test gates the production deploy.                                               |
+| `.github/workflows/**`                 | The smoke test and the quality gate gate the production deploy.                          |
+| `ruff.toml`, `.jscpd.json`, `requirements-dev.txt` | The quality gate's limits: they only get stricter (`pr-and-ci.md`).            |
 | `scripts/**`                           | They change config on the production Heroku app.                                          |
 | `.env.template`                        | Lists every variable the app reads; keep it in step with `configs.py` and `app.py`.        |
 | `LICENSE`                              | Not open source; never change it.                                                          |

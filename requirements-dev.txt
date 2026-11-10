@@ -1,0 +1,2 @@
+# Tools for the quality gate only; Heroku installs requirements.txt, not this file.
+ruff==0.17.4

@@ -1,0 +1,20 @@
+line-length = 120
+target-version = "py314"
+
+[lint]
+# The quality gate. Limits are for new code; the few functions already over one carry a `noqa` naming the
+# rule, and RUF100 fails on a `noqa` that is no longer needed, so the list only shrinks.
+# PLR1702 (nesting depth) is a preview rule, enabled alone.
+select = ["E", "F", "C90", "PLR0911", "PLR0912", "PLR0913", "PLR0915", "PLR1702", "ERA", "FBT001", "FBT002", "RUF100"]
+preview = true
+explicit-preview-rules = true
+
+[lint.mccabe]
+max-complexity = 10
+
+[lint.pylint]
+max-args = 5
+max-branches = 10
+max-returns = 5
+max-statements = 30
+max-nested-blocks = 3

@@ -9,8 +9,10 @@ trailing period. From the history:
 - `Move off retired OpenAI models`
 - `Ignore webhooks for other phone numbers and make side calls best effort`
 
-Dependabot's `chore(deps): ...` titles stay as they are. A title that needs "and" between two
-unrelated things is two pull requests (rule 2 of the standard).
+Dependabot's `chore(deps): ...` titles stay as they are. One pull request has one scope, whatever
+its size: a title that needs "and" between two things is two pull requests (rule 2 of the standard,
+scoped). Pull requests start in parallel from `main`; stack one on another only when it needs the
+other's code (rule 3, parallel, not stacked).
 
 ## Body
 

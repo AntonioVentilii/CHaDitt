@@ -33,3 +33,38 @@ jobs:
           ffmpeg -loglevel error -f lavfi -i sine=frequency=440:duration=2 -c:a libopus voice.ogg
           python -c "from whatsapp_wrapper.audio_utilities import convert_audio_to_mp3; print(convert_audio_to_mp3('voice.ogg'))"
           test -s voice.mp3
+
+  quality-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+
+      - name: Install the gate's tools
+        run: pip install -r requirements-dev.txt
+
+      - name: Lint, complexity and size of functions
+        run: ruff check .
+
+      - name: No duplicated code
+        run: npx --yes jscpd@5.4.2 .
+
+      - name: Keep files short
+        # 300 lines for a Python file. message_processor.py is capped at its size today until it is split.
+        run: |
+          status=0
+          for f in $(git ls-files '*.py'); do
+            case "$f" in
+              message_processor.py) limit=400 ;;
+              *) limit=300 ;;
+            esac
+            lines=$(wc -l < "$f")
+            if [ "$lines" -gt "$limit" ]; then
+              echo "$f has $lines lines, over its limit of $limit"
+              status=1
+            fi
+          done
+          exit $status

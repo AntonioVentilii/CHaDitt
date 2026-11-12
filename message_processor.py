@@ -49,7 +49,7 @@ def raise_with_meta_error(_wa, response, _data):
     raise Exception(f"Meta answered {response.status_code}: {response.text[:META_ERROR_BODY_MAX_CHARS]}")
 
 
-def log_outcome(kind: str, sender: str, message_id: str, outcome: str, started: float, detail: str = ''):
+def log_outcome(kind: str, sender: str, message_id: str, outcome: str, started: float, detail: str = ''):  # noqa: PLR0913
     elapsed = time.monotonic() - started
     print(f"[{kind}] {masked(sender)} {short_id(message_id)} {outcome} {elapsed:.1f}s {detail}".rstrip())
 
@@ -206,7 +206,7 @@ class MessageProcessor:
                                        media_id)
         return text_ids + [buttons_id]
 
-    def process_webhook_post_request(self, data, mark_message_as_read: bool = True, debug: bool = False) -> dict:
+    def process_webhook_post_request(self, data, mark_message_as_read: bool = True, debug: bool = False) -> dict:  # noqa: PLR0915, FBT001, FBT002
         wa = self.wa
         entry = data['entry'][0]
         changes = entry['changes']
@@ -248,10 +248,10 @@ class MessageProcessor:
         return {'success': True}
 
     @staticmethod
-    def debug_prefix(text: str, debug: bool) -> str:
+    def debug_prefix(text: str, debug: bool) -> str:  # noqa: FBT001
         return f"*DEBUG*: {text}" if debug else text
 
-    def process_audio(self, message: dict, wa_id: str, debug: bool):
+    def process_audio(self, message: dict, wa_id: str, debug: bool):  # noqa: FBT001
         recipient_id = message['from']
         message_id = message['id']
         language = self.get_user_language(wa_id)
@@ -311,7 +311,7 @@ class MessageProcessor:
             self.set_user_transcription(wa_id, context_id, transcription, context_id)
         return transcription
 
-    def process_action(self, message: dict, wa_id: str, action: str, debug: bool, media_id: str = '',
+    def process_action(self, message: dict, wa_id: str, action: str, debug: bool, media_id: str = '',  # noqa: PLR0913, PLR0915, FBT001
                        target: str = None):
         """Runs a button's action on the transcription the button belongs to and replies to that transcription.
         Translate without a target language asks for one with a menu."""
@@ -359,7 +359,7 @@ class MessageProcessor:
         self.send_reaction(recipient_id, message_id, DONE_REACTION)
         log_outcome(label, recipient_id, message_id, 'ok', started, f'{len(result)} chars')
 
-    def process_text(self, message: dict, wa_id: str, debug: bool):
+    def process_text(self, message: dict, wa_id: str, debug: bool):  # noqa: FBT001
         recipient_id = message['from']
         message_id = message['id']
         language = self.get_user_language(wa_id)

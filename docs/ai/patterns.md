@@ -85,3 +85,5 @@ end up in `heroku logs` and the Papertrail add-on.
 - `forward_to_local_dev` ([`app.py:23`](../../app.py)) returns a tuple on one path and `None` on the
   others, and the caller ignores both.
 - `raise Exception(...)` and bare `except Exception` instead of specific types.
+- Every `# noqa` in the code marks a function over a quality-gate limit: a baseline to shrink, not a
+  precedent ([`pr-and-ci.md`](./pr-and-ci.md#the-quality-gate)).

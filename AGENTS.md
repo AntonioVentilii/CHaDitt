@@ -32,6 +32,7 @@ pip install -r requirements.txt          # the lock; ffmpeg must be on PATH for 
 flask run                                # dev server on :5000, reads .env (see .env.template)
 gunicorn app:app --workers 1 --threads 8 # what Heroku runs
 GRAPH_API_TOKEN=x MOBILE_ID=x OPENAI_API_KEY=x python -c "import app"  # the CI smoke test
+pip install -r requirements-dev.txt && ruff check .  # the quality gate (and npx jscpd@5.4.2 .)
 uv pip compile requirements.in -o requirements.txt --python-version 3.14 --python-platform x86_64-unknown-linux-gnu
 ```
 

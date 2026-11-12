@@ -1,0 +1,7 @@
+{
+  "format": ["python"],
+  "gitignore": true,
+  "ignore": ["**/.venv/**", "**/__pycache__/**"],
+  "threshold": 0,
+  "reporters": ["console"]
+}

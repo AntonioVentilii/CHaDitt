@@ -34,16 +34,36 @@ No AI attribution lines. No line starts with `Test:` or `Fix:`.
 
 ## CI
 
-One workflow, [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml), job `smoke-test`, on
-every pull request and on pushes to `main`. Heroku deploys `main` only after it is green, so a red
-smoke test on `main` blocks production. What it runs: [`testing.md`](./testing.md).
+One workflow, [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml), on every pull request
+and on pushes to `main`. Heroku deploys `main` only after it is green, so a red job on `main` blocks
+production.
+
+- `smoke-test`: install the lock, `import app`, convert a voice note ([`testing.md`](./testing.md)).
+- `quality-gate`: the mechanical limits below.
+
+## The quality gate
+
+- **ruff** ([`ruff.toml`](../../ruff.toml), version pinned in
+  [`requirements-dev.txt`](../../requirements-dev.txt)): pyflakes and pycodestyle errors, lines of
+  120, and for every function: complexity, branches, returns, statements, arguments, nesting depth,
+  no boolean flag parameters, no commented-out code. The limits are in `ruff.toml`.
+- **jscpd** ([`.jscpd.json`](../../.jscpd.json)): no duplicated block in the Python code
+  (threshold 0%, today's value).
+- **File length**: 300 lines per Python file; the step in `ci.yml` holds the limit and the caps.
+
+The functions already over a limit carry `# noqa: <rule>` on their `def` line, and the files over
+300 lines have a cap at today's size. Ruff's RUF100 fails on a `noqa` that is no longer needed, so
+the baseline only shrinks: when a change brings a function under a limit, remove its `noqa`; when it
+shrinks a capped file, lower or remove its cap. Never add a `noqa`, raise a limit or a cap, or
+loosen the threshold to get to green (rule 11 of the standard): split the function instead.
 
 ## Before opening a pull request
 
 1. `pip install -r requirements.txt` in a clean venv when the lock changed.
 2. The smoke test: `GRAPH_API_TOKEN=x MOBILE_ID=x OPENAI_API_KEY=x python -c "import app"`.
-3. The manual check that fits the change ([`testing.md`](./testing.md)).
-4. The docs pages the change makes stale ([`governance.md`](./governance.md#meta-update-map)).
+3. The gate: `pip install -r requirements-dev.txt && ruff check .`, then `npx jscpd@5.4.2 .`.
+4. The manual check that fits the change ([`testing.md`](./testing.md)).
+5. The docs pages the change makes stale ([`governance.md`](./governance.md#meta-update-map)).
 
 ## Merging
 
